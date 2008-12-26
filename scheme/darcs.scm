@@ -1,25 +1,28 @@
 ;; -*- mode: scheme; scheme48-package: rcs42.darcs; -*-
 
-(define (port->lines port)
-  (unfold eof-object? values (lambda (seed) (read-line port)) (read-line port)))
-
-(define (run-process/lines prog . args)
-  (call-with-process-output (cons prog args) port->lines))
-
 (define (run-darcs command . args)
   (apply run-process #f "darcs" (symbol->string command) args))
 
 (define (run-darcs/log command . args)
   (for-each display `("% darcs " ,command " " ,(string-join args " ") #\newline))
-  (force-output (current-output-port))
+  (flush-output-port (current-output-port))
   (apply run-darcs command args))
 
-(define (repos) (file->string-list "_darcs/prefs/repos"))
+(define (port->lines port)
+  (unfold eof-object? values (lambda (seed) (read-line port)) (read-line port)))
 
-(define (inventory . args)
-  (filter-map (lambda (f) (and (not (string=? f "."))
-                               (normalize-filename f)))
-              (apply run-process/lines "darcs" "query" "manifest" args)))
+(define (repos) (call-with-input-file "_darcs/prefs/repos" port->lines))
+
+(trace-define (inventory . args)
+  (filter-map (trace-lambda fn (f)
+                (and (not (pathname=? (x->pathname f)
+                                      (make-pathname #f '() #f)))
+                     f))
+              (receive (status sig filenames)
+                       (apply run-process/lines #f "darcs" "query" "files" args)
+                (if (= 0 status)
+                    filenames
+                    '()))))
 
 (define (pull)
   (let* ((repos (repos))
@@ -32,10 +35,10 @@
                                   (run-darcs 'pull repo))))
                      repos)))))
 
-(define http-rx (make-regexp "^http://"))
+(define http-rx (irregex '(: bos "http://")))
 
 (define (push)
-  (let* ((repos (remove (lambda (r) (regexp-match http-rx r 0 #f #t #t)) (repos)))
+  (let* ((repos (remove (lambda (r) (irregex-search http-rx r)) (repos)))
          (len (length repos)))
     (if (> len 0)
         (choose "Push to repository:"
@@ -44,7 +47,7 @@
                      repos)))))
 
 (define (config-fold kons nil cfg)
-  (or (accessible? cfg (access-mode read))
+  (or (file-readable? cfg)
       (error "file not readable" cfg))
   (let ((config (with-input-from-file cfg read))
         (err (lambda (form)
@@ -68,18 +71,19 @@
   (let-optionals* args ((mode 'ask))
     (config-for-each
      (lambda (dir repo)
-       (if (accessible? dir (access-mode exists))
+       (if (file-exists? dir)
            (let ((pull
                   (lambda ()
-                    (with-cwd dir (run-darcs/log 'pull "-a" repo))))
+                    (with-working-directory dir (run-darcs/log 'pull "-a" repo))))
                  (fresh
                   (lambda ()
                     (let ((tmp (temp-name dir)))
-                      (rename dir tmp)
+                      (rename-file dir tmp)
                       (run-darcs/log 'get repo dir))))
                  (push
                   (lambda ()
-                    (with-cwd dir ( run-darcs/log 'push "-a" repo)))))
+                    (with-working-directory dir
+                      (run-darcs/log 'push "-a" repo)))))
              (case mode
                ((ask)
                 (choose (string-append dir " exists: ")
@@ -94,10 +98,10 @@
            (run-darcs/log 'get repo dir)))
      cfg)))
 
-(define (config-inventory cfg . args)
+(trace-define (config-inventory cfg . args)
   (config-fold
-   (lambda (dir repo rest)
-     (let ((file-list (with-cwd dir
+   (trace-lambda dir-fold (dir repo rest)
+     (let ((file-list (with-working-directory dir
                         (map (lambda (filename)
                                (if (string=? dir ".")
                                    filename
@@ -110,23 +114,25 @@
    cfg))
 
 (define (config-whatsnew cfg . args)
-  (reverse (config-fold
-            (lambda (dir repo rest)
-              (with-cwd dir
-                (call-with-process-output (append '("darcs" "whatsnew") args)
-                    (lambda (port)
-                      (cons (cons dir (port->lines port)) rest))
-                  (lambda (status sig result)
-                    (cond (sig
-                           (error "'darcs whatsnew' killed by signal" sig))
-                          ((not (memv status '(0 1)))
-                           (error "'darcs whatsnew' exited with unexpected status" status))
-                          ((= status 1)
-                           (cdr result)) ;; throw away output if there were no changes
-                          (else
-                           result))))))
-            '()
-            cfg)))
+  (reverse
+   (config-fold
+    (lambda (dir repo rest)
+      (with-working-directory dir
+        (receive (status sig result)
+                 (call-with-process-output
+                     #f (append '("darcs" "whatsnew") args)
+                   (lambda (port)
+                     (cons (cons dir (port->lines port)) rest)))
+          (cond (sig
+                 (error "'darcs whatsnew' killed by signal" sig))
+                ((not (memv status '(0 1)))
+                 (error "'darcs whatsnew' exited with unexpected status" status))
+                ((= status 1)
+                 (cdr result)) ;; throw away output if there were no changes
+                (else
+                 result)))))
+    '()
+    cfg)))
 
 (define (config-dist cfg . args)
   (let ((dot-pos (string-index-right cfg #\.))
@@ -136,13 +142,12 @@
                                  (+ slash-pos 1)
                                  (or (and dot-pos (> dot-pos slash-pos) dot-pos)
                                      (string-length cfg)))))
-      (make-directory name (file-mode owner))
+      (create-directory name)
       (for-each (lambda (filename)
-                  (let ((info (get-file-info filename))
-                        (dst-name (string-append name "/" filename)))
-                    (if (eq? (file-info-type info) (file-type directory))
-                        (make-directory dst-name (file-info-mode info))
-                        (link filename dst-name))))
-                (config-inventory cfg "--directories"))
+                  (let ((dst-name (string-append name "/" filename)))
+                    (if (file-directory? filename)
+                        (create-directory* dst-name)
+                        (create-hard-link filename dst-name))))
+                (config-inventory cfg))
       (run-process #f "tar" "-czf" (string-append name ".tar.gz") name)
       (run-process #f "rm" "-rf" name))))

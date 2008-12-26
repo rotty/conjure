@@ -1,3 +1,7 @@
+;; FIXME
+(define (get-process-id)
+  123456789)
+
 (define (initial-temp-file)
   (let ((tmpdir (lookup-environment-variable "TMPDIR")))
     (string-append
@@ -8,15 +12,11 @@
      (number->string (get-process-id))
      "~a")))
 
-(define *temp-file-template* (make-fluid 'not-initialized-temp-file-template))
-
-(define temp-file-reinitializer 
-  (make-reinitializer 
-   (lambda ()
-     (set-fluid! *temp-file-template* (initial-temp-file)))))
+(define *temp-file-template*
+  (make-parameter (initial-temp-file)))
 
 (define (temp-file-iterate maker . maybe-template)
-  (let ((template (if (null? maybe-template) (fluid *temp-file-template*)
+  (let ((template (if (null? maybe-template) (*temp-file-template*)
                       (car maybe-template))))
     (let loop ((i 0))
       (if (> i 1000) (error "Can't create temp-file")
