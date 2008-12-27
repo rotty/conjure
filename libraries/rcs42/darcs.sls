@@ -11,6 +11,7 @@
           config-dist)
   
   (import (except (rnrs base) string-copy string-for-each string->list)
+          (rnrs control)
           (rnrs io simple)
           (rnrs io ports)
           (spells lists)

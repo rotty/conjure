@@ -19,7 +19,7 @@
   (let ((template (if (null? maybe-template) (*temp-file-template*)
                       (car maybe-template))))
     (let loop ((i 0))
-      (if (> i 1000) (error "Can't create temp-file")
+      (if (> i 1000) (error 'temp-file-iterate "Can't create temp-file")
 	  (let ((fname (format #f template (number->string i))))
 	    (receive retvals (guard
                               (c ((i/o-error? c) #f))

@@ -13,8 +13,8 @@
 
 (define (repos) (call-with-input-file "_darcs/prefs/repos" port->lines))
 
-(trace-define (inventory . args)
-  (filter-map (trace-lambda fn (f)
+(define (inventory . args)
+  (filter-map (lambda (f)
                 (and (not (pathname=? (x->pathname f)
                                       (make-pathname #f '() #f)))
                      f))
@@ -47,13 +47,15 @@
                      repos)))))
 
 (define (config-fold kons nil cfg)
-  (or (file-readable? cfg)
-      (error "file not readable" cfg))
+  (define (lose msg . irritants)
+    (apply error 'config-fold msg irritants))
+  (unless (file-readable? cfg)
+    (lose "file not readable" cfg))
   (let ((config (with-input-from-file cfg read))
         (err (lambda (form)
-               (error "config file must be of the form ((dir repo) ...)"
-                      form))))
-    (if (not (list? config)) (error config))
+               (lose "config file must be of the form ((dir repo) ...)"
+                     form))))
+    (if (not (list? config)) (lose "malformed config" config))
     (for-each (lambda (prj)
                 (if (not (and (list? prj) (= 2 (length prj)))) (err prj)))
               config)
@@ -98,9 +100,9 @@
            (run-darcs/log 'get repo dir)))
      cfg)))
 
-(trace-define (config-inventory cfg . args)
+(define (config-inventory cfg . args)
   (config-fold
-   (trace-lambda dir-fold (dir repo rest)
+   (lambda (dir repo rest)
      (let ((file-list (with-working-directory dir
                         (map (lambda (filename)
                                (if (string=? dir ".")
@@ -114,6 +116,8 @@
    cfg))
 
 (define (config-whatsnew cfg . args)
+  (define (lose msg . irritants)
+    (apply error 'config-whatsnew msg irritants))
   (reverse
    (config-fold
     (lambda (dir repo rest)
@@ -124,9 +128,9 @@
                    (lambda (port)
                      (cons (cons dir (port->lines port)) rest)))
           (cond (sig
-                 (error "'darcs whatsnew' killed by signal" sig))
+                 (lose "'darcs whatsnew' killed by signal" sig))
                 ((not (memv status '(0 1)))
-                 (error "'darcs whatsnew' exited with unexpected status" status))
+                 (lose "'darcs whatsnew' exited with unexpected status" status))
                 ((= status 1)
                  (cdr result)) ;; throw away output if there were no changes
                 (else
