@@ -1,14 +1,7 @@
 #!r6rs
 
 (library (rcs42 darcs)
-  (export pull
-          push
-          run-process/lines
-          build-config
-          inventory
-          config-inventory
-          config-whatsnew
-          config-dist)
+  (export darcs)
   
   (import (except (rnrs base) string-copy string-for-each string->list)
           (rnrs control)
@@ -25,8 +18,11 @@
           (spells opt-args)
           (spells tracing)
           (spells include)
+          (spells operations)
           (xitomatl irregex)
+          (rcs42 utils)
           (rcs42 files)
-          (rcs42 prompt))
+          (rcs42 prompt)
+          (rcs42 operations))
   
   (include-file ((rcs42 scheme) darcs)))

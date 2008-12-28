@@ -3,7 +3,7 @@
 (import (rnrs)
         (spells receive)
         (spells string-substitute)
-        (prefix (rcs42 darcs) darcs:))
+        (rcs42))
 
 (define (list-ref* lst n default)
   (do ((i 0 (+ i 1))
@@ -37,11 +37,11 @@
      (receive (cfg args) (parse-args args)
        (apply proc cfg (append extra-args args))))))
 
-(define whatsnew (make-lister darcs:config-whatsnew print-lines))
-(define inventory (make-lister darcs:config-inventory println))
-(define dist (make-runner darcs:config-dist))
-(define push (make-runner darcs:build-config 'push))
-(define pull (make-runner darcs:build-config 'pull))
+(define whatsnew (make-lister config-whatsnew print-lines))
+(define inventory (make-lister config-inventory println))
+(define dist (make-runner config-dist))
+(define push (make-runner build-config 'push))
+(define pull (make-runner build-config 'pull))
 
 (define (bail-out msg . args)
   (string-substitute (current-error-port) msg args 'braces)
