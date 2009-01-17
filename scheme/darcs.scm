@@ -43,8 +43,24 @@
                 (map (lambda (repo) `(,repo ,(lambda () (run-darcs 'push repo))))
                      repos)))))
 
+
+(define (diff)
+  (define (lose msg . irritants)
+    (apply error 'darcs-diff msg irritants))
+  (receive (status sig lines)
+           (run-process/lines #f "darcs" "diff" "-u")
+    (cond (sig
+           (lose "'darcs diff' killed by signal" sig))
+          ((not (memv status '(0 1)))
+           (lose "'darcs diff' exited with unexpected status" status))
+          ((= status 1)
+           (cdr lines)) ;; throw away output if there were no changes
+          (else
+           lines))))
+
 (define darcs
   (object #f
     ((rcs/pull self)      (pull))
     ((rcs/push self)      (push))
-    ((rcs/inventory self) (inventory))))
+    ((rcs/inventory self) (inventory))
+    ((rcs/diff self)      (diff))))

@@ -1,6 +1,6 @@
 ;;; rcs42.sls --- Composite library for all of rcs42
 
-;; Copyright (C) 2008 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2008, 2009 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -26,10 +26,11 @@
   (export rcs/pull
           rcs/push
           rcs/inventory
+          rcs/diff
 
           config-inventory
           build-config
-          config-whatsnew
+          config-diff
           config-dist
 
           default-rcs

@@ -5,6 +5,7 @@
   
   (import (except (rnrs base) string-copy string-for-each string->list)
           (rnrs control)
+          (rnrs lists)
           (rnrs io simple)
           (rnrs io ports)
           (xitomatl srfi lists)

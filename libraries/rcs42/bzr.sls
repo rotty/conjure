@@ -43,8 +43,22 @@
                   (if (= 0 status)
                       filenames
                       '()))))
+
+  (define (diff)
+    (define (lose msg . irritants)
+      (apply error 'bzr-diff msg irritants))
+    (receive (status sig lines)
+             (run-process/lines #f "bzr" "diff")
+      (cond (sig
+             (lose "'bzr diff' killed by signal" sig))
+            ((not (memv status '(0 1 2)))
+             (lose "'bzr diff' exited with unexpected status" status))
+            (else
+             lines))))
+
   (define bzr
     (object #f
-      ((rcs/inventory self) (inventory))))
-  
+      ((rcs/inventory self) (inventory))
+      ((rcs/diff self)      (diff))))
+
   )

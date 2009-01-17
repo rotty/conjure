@@ -25,7 +25,7 @@
 (library (rcs42 config)
   (export build-config
           config-inventory
-          config-whatsnew
+          config-diff
           config-dist)
   (import (rnrs base)
           (rnrs control)

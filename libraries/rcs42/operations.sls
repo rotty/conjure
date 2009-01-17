@@ -26,7 +26,8 @@
   (export rcs/get
           rcs/pull
           rcs/push
-          rcs/inventory)
+          rcs/inventory
+          rcs/diff)
   (import (rnrs base)
           (spells operations))
 
@@ -34,5 +35,6 @@
   (define-operation (rcs/pull rcs repo))
   (define-operation (rcs/push rcs repo))
   (define-operation (rcs/inventory rcs))
+  (define-operation (rcs/diff rcs))
   
   )

@@ -97,27 +97,12 @@
    '()
    cfg))
 
-;; FIXME: This calls darcs directly instead of using an operation
-(define (config-whatsnew cfg . args)
-  (define (lose msg . irritants)
-    (apply error 'config-whatsnew msg irritants))
+(define (config-diff cfg . args)
   (reverse
    (config-fold
     (lambda (rcs dir repo rest)
       (with-working-directory dir
-        (receive (status sig result)
-                 (call-with-process-output
-                     #f (append '("darcs" "whatsnew") args)
-                   (lambda (port)
-                     (cons (cons dir (port->lines port)) rest)))
-          (cond (sig
-                 (lose "'darcs whatsnew' killed by signal" sig))
-                ((not (memv status '(0 1)))
-                 (lose "'darcs whatsnew' exited with unexpected status" status))
-                ((= status 1)
-                 (cdr result)) ;; throw away output if there were no changes
-                (else
-                 result)))))
+        (cons (cons dir (rcs/diff rcs)) rest)))
     '()
     cfg)))
 

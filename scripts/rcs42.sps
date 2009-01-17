@@ -1,7 +1,7 @@
 #!r6rs
 
 (import (rnrs)
-        (spells receive)
+        (xitomatl srfi receive)
         (spells string-substitute)
         (rcs42))
 
@@ -37,7 +37,7 @@
      (receive (cfg args) (parse-args args)
        (apply proc cfg (append extra-args args))))))
 
-(define whatsnew (make-lister config-whatsnew print-lines))
+(define diff (make-lister config-diff print-lines))
 (define inventory (make-lister config-inventory println))
 (define dist (make-runner config-dist))
 (define push (make-runner build-config 'push))
@@ -50,7 +50,7 @@
 
 (define (usage)
   (for-each display
-            '("usage: rcs42 {whatsnew|inventory|dist|push|pull} CONFIG\n")))
+            '("usage: rcs42 {diff|inventory|dist|push|pull} CONFIG\n")))
 
 (define (main argv)
   (cond
@@ -60,7 +60,7 @@
     (exit 1))
    (else
     ((case (string->symbol (cadr argv))
-       ((whatsnew)  whatsnew)
+       ((diff)      diff)
        ((inventory) inventory)
        ((dist)      dist)
        ((push)      push)
