@@ -7,7 +7,7 @@
           (rnrs conditions)
           (rnrs exceptions)
           (rnrs io ports)
-          (xitomatl srfi receive)
+          (srfi :8 receive)
           (spells parameter)
           (spells format)
           (spells delimited-readers)

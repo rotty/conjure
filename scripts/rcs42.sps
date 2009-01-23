@@ -1,7 +1,7 @@
 #!r6rs
 
 (import (rnrs)
-        (xitomatl srfi receive)
+        (srfi :8 receive)
         (spells string-substitute)
         (rcs42))
 

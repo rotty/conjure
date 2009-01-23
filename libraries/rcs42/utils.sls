@@ -23,7 +23,7 @@
 (library (rcs42 utils)
   (export port->lines)
   (import (rnrs)
-          (only (xitomatl srfi lists) unfold))
+          (only (srfi :1 lists) unfold))
 
   (define (port->lines port)
     (unfold eof-object? values (lambda (seed) (get-line port)) (get-line port)))
