@@ -60,7 +60,11 @@
 
 (define darcs
   (object #f
-    ((rcs/pull self)      (pull))
-    ((rcs/push self)      (push))
-    ((rcs/inventory self) (inventory))
-    ((rcs/diff self)      (diff))))
+    ((rcs/pull self repo)
+     (run-darcs/log 'pull "-a" repo))
+    ((rcs/push self repo)
+     (run-darcs/log 'push "-a" repo))
+    ((rcs/inventory self)
+     (inventory))
+    ((rcs/diff self)
+     (diff))))

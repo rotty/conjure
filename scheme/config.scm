@@ -58,7 +58,7 @@
        (if (file-exists? dir)
            (let ((pull
                   (lambda ()
-                    (with-working-directory dir (rcs/pull repo))))
+                    (with-working-directory dir (rcs/pull rcs repo))))
                  (fresh
                   (lambda ()
                     (let ((tmp (temp-name dir)))
