@@ -67,10 +67,23 @@
             (else
              lines))))
 
+  (define (info)
+    (receive (status sig lines) (run-process/lines #f "bzr" "info")
+      ;; FIXME: error checking
+      lines))
+
+  (define (lightweight?)
+    (and (exists (lambda (line)
+                   (string-prefix? "Lightweight checkout" line))
+                 (info))
+         #t))
+
   (define bzr
     (object #f
       ((rcs/pull self repo)
-       (run-bzr/log 'pull repo))
+       (if (lightweight?)
+           (run-bzr/log 'update)
+           (run-bzr/log 'pull repo)))
       ((rcs/inventory self) (inventory))
       ((rcs/diff self)      (diff))))
 
