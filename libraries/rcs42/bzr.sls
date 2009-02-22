@@ -1,6 +1,6 @@
 ;;; bzr.sls --- bzr backend for rcs42
 
-;; Copyright (C) 2008 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2008, 2009 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -24,14 +24,25 @@
 
 (library (rcs42 bzr)
   (export bzr)
-  (import (rnrs base)
+  (import (except (rnrs base) string-copy string-for-each string->list)
           (rnrs lists)
+          (rnrs io simple)
+          (rnrs io ports)
           (srfi :8 receive)
           (only (srfi :1 lists) filter-map)
+          (srfi :13 strings)
           (spells operations)
           (spells pathname)
           (spells process)
           (rcs42 operations))
+
+  (define (run-bzr command . args)
+    (apply run-process #f "bzr" (symbol->string command) args))
+
+  (define (run-bzr/log command . args)
+    (for-each display `("% bzr " ,command " " ,(string-join args " ") #\newline))
+    (flush-output-port (current-output-port))
+    (apply run-bzr command args))
 
   (define (inventory)
     (filter-map (lambda (f)
@@ -58,6 +69,8 @@
 
   (define bzr
     (object #f
+      ((rcs/pull self repo)
+       (run-bzr/log 'pull repo))
       ((rcs/inventory self) (inventory))
       ((rcs/diff self)      (diff))))
 

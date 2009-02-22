@@ -67,4 +67,6 @@
     ((rcs/inventory self)
      (inventory))
     ((rcs/diff self)
-     (diff))))
+     (diff))
+    ((rcs/get self repo dir)
+     (run-darcs/log 'get repo dir))))

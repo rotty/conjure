@@ -2,7 +2,7 @@
 
 (import (rnrs)
         (srfi :8 receive)
-        (spells string-substitute)
+        (spells string-utils)
         (rcs42))
 
 (define (list-ref* lst n default)

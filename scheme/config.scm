@@ -1,6 +1,6 @@
 ;;; config.scm --- Handling of "configs", as pioneered by GNU Arch
 
-;; Copyright (C) 2008 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2008, 2009 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -79,7 +79,7 @@
                ((pull) (pull))
                ((fresh) (fresh))
                ((push)  (push))))
-           (rcs/get repo dir)))
+           (rcs/get rcs repo dir)))
      cfg)))
 
 (define (config-inventory cfg)
