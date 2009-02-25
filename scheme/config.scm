@@ -44,7 +44,7 @@
   (unless (file-readable? cfg)
     (lose "file not readable" cfg))
   (fold (lambda (prj rest)
-          (kons (car prj) (cadr prj) (caddr prj) rest))
+          (kons (car prj) (pathname-as-directory (cadr prj)) (caddr prj) rest))
         nil
         (normalize-config (call-with-input-file cfg read))))
 
@@ -82,16 +82,19 @@
            (rcs/get rcs repo dir)))
      cfg)))
 
+(define empty-pathname?
+  (let ((empty (make-pathname #f '() #f)))
+    (lambda (p)
+      (pathname=? p empty))))
+
 (define (config-inventory cfg)
   (config-fold
    (lambda (rcs dir repo rest)
      (let ((file-list (with-working-directory dir
                         (map (lambda (filename)
-                               (if (string=? dir ".")
-                                   filename
-                                   (string-append dir "/" filename)))
+                               (pathname-join dir filename))
                              (rcs/inventory rcs)))))
-       (append rest (if (string=? dir ".")
+       (append rest (if (empty-pathname? dir)
                         file-list
                         (cons dir file-list)))))
    '()
@@ -106,6 +109,35 @@
     '()
     cfg)))
 
+
+(define (sys-def-extractor key)
+  (lambda (form)
+    (match form
+      (('define-system name clauses ___)
+       (append-map (lambda (clause)
+                     (if (eq? (car clause) key)
+                         (cdr clause)
+                         '()))
+                   clauses))
+      (_
+       '()))))
+
+(define (config-extra-dist cfg)
+  (config-fold
+   (lambda (rcs dir repo extra-dist)
+     (let ((sys-def (pathname-join dir "sys-def.scm")))
+       (append
+        (map (lambda (filename)
+               (pathname-join dir filename))
+             (if (file-exists? sys-def)
+                 (append-map (sys-def-extractor 'extra-dist)
+                             (call-with-input-file (x->namestring sys-def)
+                               port->sexps))
+                 '()))
+        extra-dist)))
+   '()
+   cfg))
+
 (define (config-dist cfg . args)
   (let ((dot-pos (string-index-right cfg #\.))
         (slash-pos (or (string-index-right cfg #\/) -1)))
@@ -114,12 +146,17 @@
                                  (+ slash-pos 1)
                                  (or (and dot-pos (> dot-pos slash-pos) dot-pos)
                                      (string-length cfg)))))
-      (create-directory name)
-      (for-each (lambda (filename)
-                  (let ((dst-name (string-append name "/" filename)))
-                    (if (file-directory? filename)
-                        (create-directory* dst-name)
-                        (create-hard-link filename dst-name))))
-                (config-inventory cfg))
-      (run-process #f "tar" "-czf" (string-append name ".tar.gz") name)
-      (run-process #f "rm" "-rf" name))))
+      (let ((dirname (pathname-as-directory name)))
+        (create-directory dirname)
+        (for-each (lambda (filename)
+                    (let ((dst-name (pathname-join dirname filename)))
+                      (if (file-directory? filename)
+                          (create-directory* dst-name)
+                          (create-hard-link filename dst-name))))
+                  (append (config-inventory cfg)
+                          (config-extra-dist cfg)))
+        (run-process #f "tar" "-czf" (string-append name ".tar.gz") name)
+        (run-process #f "rm" "-rf" name)))))
+
+(define (port->sexps port)
+  (unfold eof-object? values (lambda (seed) (read port)) (read port)))

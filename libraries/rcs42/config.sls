@@ -1,6 +1,6 @@
 ;;; config.sls --- Handling of "configs", as pioneered by GNU Arch
 
-;; Copyright (C) 2008 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2008, 2009 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -32,13 +32,16 @@
           (rnrs lists)
           (rnrs io simple)
           (srfi :8 receive)
-          (only (srfi :1 lists) fold)
+          (only (srfi :1 lists) fold unfold append-map)
           (only (srfi :13 strings) substring/shared string-index-right)
           (spells opt-args)
           (spells misc)
+          (spells match)
+          (spells pathname)
           (spells filesys)
           (spells process)
           (spells include)
+          (spells tracing)
           (rcs42 utils)
           (rcs42 files)
           (rcs42 prompt)
