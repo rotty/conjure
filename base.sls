@@ -30,6 +30,7 @@
           (only (spells misc) topological-sort)
           (spells opt-args)
           (spells pathname)
+          (spells filesys)
           (conjure utils)
           (prometheus))
 
@@ -121,7 +122,17 @@
 
   ((build-rec self resend . maybe-force?)
    (let ((force? (*optional maybe-force? #f)))
+     (unless (file-exists? (self 'product-dir))
+       (create-directory (self 'product-dir)))
      (send-all (root-tasks self) 'build-rec force?)))
+
+  ((clean self resend)
+   (send-all (root-tasks self) 'clean)
+   (delete-file (self 'product-dir)))
+
+  ((has-product? self resend name)
+   ;; TODO: rules?
+   (and (hashtable-ref (self 'product-goals) name #f) #t))
 
   ((get-task self resend name/product . maybe-fallback)
    (let* ((fallback (*optional maybe-fallback

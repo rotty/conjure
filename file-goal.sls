@@ -45,7 +45,10 @@
    (let* ((source-dir (register 'source-dir))
           (prod-dir (register 'product-dir))
           (sources (map (lambda (src)
-                         (pathname-join source-dir src))
+                          (pathname-join (if (register 'has-product? src)
+                                             prod-dir
+                                             source-dir)
+                                         src))
                         (self 'sources)))
           (products (map (lambda (prod)
                            (pathname-join prod-dir prod))
