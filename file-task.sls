@@ -1,4 +1,4 @@
-;;; file-goal.sls --- A goal operating on files
+;;; file-task.sls --- A task operating on files
 
 ;; Copyright (C) 2009 Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -21,8 +21,8 @@
 
 ;;; Code:
 #!r6rs
-(library (conjure file-goal)
-  (export <file-goal>)
+(library (conjure file-task)
+  (export <file-task>)
   (import (rnrs base)
           (srfi :1 lists)
           (srfi :19 time)
@@ -32,20 +32,20 @@
           (conjure base)
           (prometheus))
 
-(define-object <file-goal> (<goal>)
-  ((construct-task self resend register)
+(define-object <file-task> (<task>)
+  ((construct-step self resend project)
    (define (file-check source)
      (lambda ()
-       (let ((filename (pathname-join (register 'source-dir) source)))
+       (let ((filename (pathname-join (project 'source-dir) source)))
          (cond ((file-exists? filename)
                 #f)
                (else
-                (build-failure "no task found for building {0}"
+                (build-failure "no step found for building {0}"
                                (x->namestring filename)))))))
-   (let* ((source-dir (register 'source-dir))
-          (prod-dir (register 'product-dir))
+   (let* ((source-dir (project 'source-dir))
+          (prod-dir (project 'product-dir))
           (sources (map (lambda (src)
-                          (pathname-join (if (register 'has-product? src)
+                          (pathname-join (if (project 'has-product? src)
                                              prod-dir
                                              source-dir)
                                          src))
@@ -53,13 +53,13 @@
           (products (map (lambda (prod)
                            (pathname-join prod-dir prod))
                          (self 'products))))
-     (define-object task (<task>)
+     (define-object step (<step>)
        (dependencies (append (map (lambda (dep)
-                                    (register 'get-task dep))
+                                    (project 'get-step dep))
                                   (self 'dependencies))
                              (filter-map
                               (lambda (source)
-                                (register 'get-task source (file-check source)))
+                                (project 'get-step source (file-check source)))
                               (self 'sources))))
        (sources sources)
        (products products)
@@ -69,6 +69,6 @@
             (and (not (or (null? sources) (null? products)))
                  (time>? (last-modification-time sources)
                          (last-modification-time products))))))
-     task)))
+     step)))
 
 )

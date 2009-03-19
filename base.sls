@@ -22,10 +22,12 @@
 ;;; Code:
 #!r6rs
 (library (conjure base)
-  (export <task> <goal> <register>)
+  (export <step> <task> <project>)
   (import (rnrs base)
           (rnrs control)
+          (rnrs lists)
           (rnrs hashtables)
+          (rnrs mutable-pairs)
           (srfi :1 lists)
           (only (spells misc) topological-sort)
           (spells opt-args)
@@ -34,9 +36,9 @@
           (conjure utils)
           (prometheus))
 
-;;; Task
+;;; Step
 
-(define-object <task> (*the-root-object*)
+(define-object <step> (*the-root-object*)
   ((dependencies self resend) '())
   ((stale? self resend) #f)
   ((stale-rec? self resend)
@@ -49,18 +51,18 @@
                     (stale-dependency-list self))))
      (send-all deps 'build))))
 
-(define (dependency-dag task)
-  (let ((deps (task 'dependencies)))
+(define (dependency-dag step)
+  (let ((deps (step 'dependencies)))
     (if (null? deps)
-        (list (list task))
-        (concatenate (cons (list (cons task deps))
+        (list (list step))
+        (concatenate (cons (list (cons step deps))
                            (map dependency-dag deps))))))
 
-(define (dependency-list task)
-  (reverse (topological-sort (dependency-dag task))))
+(define (dependency-list step)
+  (reverse (topological-sort (dependency-dag step))))
 
-(define (stale-dependency-list task)
-  (let ((dl (dependency-list task)))
+(define (stale-dependency-list step)
+  (let ((dl (dependency-list step)))
     (let loop ((dl dl) (sdl '()))
       (cond ((null? dl)
              (reverse sdl))
@@ -70,24 +72,91 @@
             (else
              (loop (cdr dl) sdl))))))
 
-;;; Goal
+;;; Task
 
-(define-object <goal> (*the-root-object*)
+(define-object <task> (*the-root-object*)
   (name set-name! #f)
+
+  ((new self resend props)
+   (let* ((t (self 'clone))
+          (info (t 'properties)))
+     (define (required-props)
+       (filter-map (lambda (propinfo)
+                     (and (null? (cddr propinfo)) (car propinfo)))
+                   info))
+     (define (defaulted-props)
+       (filter-map (lambda (propinfo)
+                     (and (not (null? (cddr propinfo))) (car propinfo)))
+                   info))
+     (define (coerce-prop propval propinfo)
+       (let ((type (cadr propinfo)))
+         (define (checked pred)
+           (unless (pred propval)
+             (raise-task-error 'task "property value is not of expected type"
+                               propval type))
+           propval)
+         (case type
+           ((pathname)  (x->pathname propval))
+           ((string)    (checked string?))
+           ((procedure) (checked procedure?))
+           ((number)    (checked number?))
+           ((integer)   (checked integer?))
+           (else
+            (error '<task>.new "invalid property type" type)))))
+     (let loop ((specified '()) (ps props))
+       (if (null? ps)
+           (let ((missing (lset-difference eq? (required-props) specified))
+                 (defaulted (lset-difference eq? (defaulted-props) specified)))
+             (unless (null? missing)
+               (raise-task-error 'task "missing properties" missing))
+             (for-each
+              (lambda (propname)
+                (cond ((assq propname info)
+                       => (lambda (propinfo)
+                            (let ((default (caddr propinfo)))
+                              (t 'set-prop! propname
+                                 (if (procedure? default)
+                                     (default t)
+                                     default)))))))
+              defaulted)
+             t)
+           (let ((propname (caar ps))
+                 (propval (cdar ps)))
+             (cond ((assq propname info)
+                    => (lambda (propinfo)
+                         (t 'set-prop! propname (coerce-prop propval propinfo))
+                         (loop (cons propname specified)
+                               (cdr ps))))
+                   (else
+                    (raise-task-error 'task "no such property" propname))))))))
+
+  (%props %set-props! '())
+
+  ((prop self resend name)
+   (cond ((assq name (self '%props)) => cdr)
+         (else (error '<task>.prop "no such property" name))))
+
+  ((set-prop! self resend name value)
+   (cond ((assq name (self '%props))
+          => (lambda (prop)
+               (set-cdr! prop value)))
+         (else
+          (self '%set-props! (cons (cons name value) (self '%props))))))
+
   ((dependencies self resend) '())
   ((sources self resend) '())
   ((products self resend) '()))
 
-;;; Register
+;;; Project
 
-(define-object <register> (<goal>)
+(define-object <project> (<task>)
   ;; Value slots
   (product-dir set-product-dir! (make-pathname #f '() #f))
   (source-dir set-source-dir! (make-pathname #f '() #f))
-  (named-goals set-named-goals! #f)
-  (goal-tasks set-goal-tasks! #f)
-  (product-goals set-product-goals! #f)
-  (goals set-goals! '())
+  (named-tasks set-named-tasks! #f)
+  (task-steps set-task-steps! #f)
+  (product-tasks set-product-tasks! #f)
+  (tasks set-tasks! '())
   (rules set-rules! '())
 
   ;; Constructor
@@ -96,94 +165,94 @@
      (reg 'set-name! name)
      (reg 'set-source-dir! (x->pathname src-dir))
      (reg 'set-product-dir! (x->pathname prod-dir))
-     (reg 'set-named-goals! (make-eq-hashtable))
-     (reg 'set-goal-tasks! (make-eq-hashtable))
-     (reg 'set-product-goals! (make-hashtable string-hash string=?))
+     (reg 'set-named-tasks! (make-eq-hashtable))
+     (reg 'set-task-steps! (make-eq-hashtable))
+     (reg 'set-product-tasks! (make-hashtable string-hash string=?))
      reg))
 
-  ((add-goal self resend goal)
-   (let ((goal-name (goal 'name))
-         (prod-goals (self 'product-goals)))
-     (when goal-name
-       (hashtable-set! (self 'named-goals) goal))
+  ((add-task self resend task)
+   (let ((task-name (task 'name))
+         (prod-tasks (self 'product-tasks)))
+     (when task-name
+       (hashtable-set! (self 'named-tasks) task))
      (for-each
       (lambda (prod)
         (hashtable-update!
-         prod-goals
+         prod-tasks
          prod
          (lambda (prev)
            (when prev
-             (build-failure "already have a goal yielding this product"
+             (build-failure "already have a task yielding this product"
                             prev prod))
-           goal)
+           task)
          #f))
-      (goal 'products))
-     (self 'set-goals! (cons goal (self 'goals)))))
+      (task 'products))
+     (self 'set-tasks! (cons task (self 'tasks)))))
 
   ((build-rec self resend . maybe-force?)
    (let ((force? (*optional maybe-force? #f)))
      (unless (file-exists? (self 'product-dir))
        (create-directory (self 'product-dir)))
-     (send-all (root-tasks self) 'build-rec force?)))
+     (send-all (root-steps self) 'build-rec force?)))
 
   ((clean self resend)
-   (send-all (root-tasks self) 'clean)
+   (send-all (root-steps self) 'clean)
    (delete-file (self 'product-dir)))
 
   ((has-product? self resend name)
    ;; TODO: rules?
-   (and (hashtable-ref (self 'product-goals) name #f) #t))
+   (and (hashtable-ref (self 'product-tasks) name #f) #t))
 
-  ((get-task self resend name/product . maybe-fallback)
+  ((get-step self resend name/product . maybe-fallback)
    (let* ((fallback (*optional maybe-fallback
                                (lambda ()
-                                 (build-failure "no task found for building {0}"
+                                 (build-failure "no step found for building {0}"
                                                 name/product))))
-          (goal-tasks (self 'goal-tasks))
-          (goal
+          (task-steps (self 'task-steps))
+          (task
            (cond ((symbol? name/product)
-                  (or (hashtable-ref (self 'named-goals) name/product #f)
+                  (or (hashtable-ref (self 'named-tasks) name/product #f)
                       (fallback)))
                  ((string? name/product)
-                  (or (hashtable-ref (self 'product-goals) name/product #f)
+                  (or (hashtable-ref (self 'product-tasks) name/product #f)
                       ;; TODO: rules would go here
                       (fallback)))
                  (else
-                  (error '<register>/get-task
+                  (error '<project>/get-step
                          "invalid name/product" name/product)))))
-     (and goal
-          (cond ((hashtable-ref goal-tasks goal #f)
+     (and task
+          (cond ((hashtable-ref task-steps task #f)
                  => values)
                 (else
-                 (let ((task (goal 'construct-task self)))
-                   (hashtable-set! goal-tasks goal task)
-                   task)))))))
+                 (let ((step (task 'construct-step self)))
+                   (hashtable-set! task-steps task step)
+                   step)))))))
 
-(define (root-tasks reg)
+(define (root-steps reg)
   (filter-map (lambda (adj)
                 (and (null? (cdr adj)) (car adj)))
               (precondition-dag reg)))
 
 (define (precondition-dag reg)
-  (invert-dag (register-dependency-dag reg)))
+  (invert-dag (project-dependency-dag reg)))
 
-(define (register-tasks reg)
-  (let ((goal-tasks (reg 'goal-tasks)))
-    (let loop ((goals (reg 'goals)) (tasks '()))
-      (cond ((null? goals)
-             (reverse tasks))
-            ((hashtable-ref goal-tasks (car goals) #f)
-             => (lambda (task)
-                  (loop (cdr goals) (cons task tasks))))
+(define (project-steps reg)
+  (let ((task-steps (reg 'task-steps)))
+    (let loop ((tasks (reg 'tasks)) (steps '()))
+      (cond ((null? tasks)
+             (reverse steps))
+            ((hashtable-ref task-steps (car tasks) #f)
+             => (lambda (step)
+                  (loop (cdr tasks) (cons step steps))))
             (else
-             (let* ((goal (car goals))
-                    (task (goal 'construct-task reg)))
-               (hashtable-set! goal-tasks goal task)
-               (loop (cdr goals) (cons task tasks))))))))
+             (let* ((task (car tasks))
+                    (step (task 'construct-step reg)))
+               (hashtable-set! task-steps task step)
+               (loop (cdr tasks) (cons step steps))))))))
 
-(define (register-dependency-dag reg)
-  (map (lambda (task)
-         (cons task (task 'dependencies)))
-       (register-tasks reg)))
+(define (project-dependency-dag reg)
+  (map (lambda (step)
+         (cons step (step 'dependencies)))
+       (project-steps reg)))
 
 )

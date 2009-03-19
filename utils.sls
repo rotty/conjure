@@ -25,22 +25,35 @@
 (library (conjure utils)
   (export send-all
           build-failure
+          raise-task-error
           last-modification-time
           all-files-exist?
-          invert-dag)
+          invert-dag
+          pathname-strip-type
+          pathname-add-type
+          subst-port)
   (import (rnrs base)
           (rnrs hashtables)
+          (rnrs io ports)
+          (rnrs mutable-strings)
           (srfi :1 lists)
           (srfi :8 receive)
+          (only (srfi :13 strings)
+                string-suffix? string-copy!)
           (srfi :19 time)
-          (spells filesys)
-          (only (srfi :43 vectors) vector-fold))
+          (only (srfi :43 vectors) vector-fold)
+          (spells pathname)
+          (spells filesys))
 
 (define (send-all objects msg . args)
   (for-each (lambda (o) (apply o msg args)) objects))
 
 (define (build-failure msg . args)
   (apply error 'build-failure msg args))
+
+(define (raise-task-error who msg . args)
+  ;; TODO: use conditions
+  (apply error who msg args))
 
 (define (last-modification-time files)
   (fold (lambda (file time)
@@ -72,4 +85,50 @@
                    '()
                    keys
                    values))))
+
+(define (pathname-strip-type pathname type)
+  (let* ((file (pathname-file pathname))
+         (types (file-types file)))
+    (if (and (not (null? types))
+             (equal? (last types) type))
+        (values
+         (pathname-with-file pathname
+                             (make-file (file-name file) (drop-right types 1)))
+         #t)
+        (values pathname #f))))
+
+(define (pathname-add-type pathname type)
+  (let ((file (pathname-file pathname)))
+    (pathname-with-file pathname
+                        (make-file (file-name file)
+                                   (append (file-types file) (list type))))))
+
+(define (subst-port in-port out-port escape replacer)
+  (let* ((esc-len (string-length escape))
+         (buf-size (max 4000 (* esc-len 16)))
+         (buffer (make-string buf-size)))
+    (let loop ((idx 0))
+      (let ((c (get-char in-port)))
+        (cond ((eof-object? c)
+               (put-string out-port buffer 0 idx))
+              (else
+               (string-set! buffer idx c)
+               (let ((idx (+ idx 1)))
+                 (cond ((and (>= idx esc-len)
+                              (string-suffix? escape buffer
+                                              0 esc-len 0 idx))
+                        (let ((datum (get-datum in-port)))
+                          (cond ((eof-object? datum)
+                                 (put-string out-port buffer 0 idx))
+                                (else
+                                 (put-string out-port buffer 0 (- idx esc-len))
+                                 (replacer out-port datum)
+                                 (loop 0)))))
+                       ((< idx buf-size)
+                        (loop idx))
+                       (else
+                        (put-string out-port buffer 0 (- idx esc-len))
+                        (string-copy! buffer 0 buffer (- idx esc-len) idx)
+                        (loop esc-len))))))))))
+
 )
