@@ -1,4 +1,4 @@
-;;; tests.scm --- List of tests for conjure
+;;; dsl.scm --- Unit tests for the Conjure DSL
 
 ;; Copyright (C) 2009 Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -21,22 +21,15 @@
 
 ;;; Code:
 
-((systems conjure)
- (files
-  ("utils.scm"
-   (rnrs io ports)
-   (srfi :8 receive)
-   (spells pathname)
-   (conjure utils))
-  ("base.scm"
-   (spells pathname)
-   (spells tracing)
-   (prometheus)
-   (conjure utils)
-   (conjure base))
-  ("dsl.scm"
-   (only (spells assert) cout)
-   (srfi :39 parameters)
-   (conjure base)
-   (conjure task-lib)
-   (conjure dsl))))
+(define-test-suite dsl-tests
+  "Domain specific language")
+
+(define-test-case dsl-tests basics ()
+  (parameterize ((current-project (<project> 'new #f "." ".")))
+    (task (file "foo"
+                (sources "bar")
+                (system "echo 'building foo'")))))
+
+(register-builtin-tasks)
+
+(run-test-suite dsl-tests)

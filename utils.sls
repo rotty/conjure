@@ -24,6 +24,7 @@
 
 (library (conjure utils)
   (export send-all
+          coerce
           build-failure
           raise-task-error
           last-modification-time
@@ -31,8 +32,10 @@
           invert-dag
           pathname-strip-type
           pathname-add-type
-          subst-port)
+          subst-port
+          vprop-setter)
   (import (rnrs base)
+          (rnrs control)
           (rnrs hashtables)
           (rnrs io ports)
           (rnrs mutable-strings)
@@ -42,11 +45,30 @@
                 string-suffix? string-copy!)
           (srfi :19 time)
           (only (srfi :43 vectors) vector-fold)
+          (spells match)
           (spells pathname)
           (spells filesys))
 
 (define (send-all objects msg . args)
   (for-each (lambda (o) (apply o msg args)) objects))
+
+(define (coerce val type)
+  (define (checked pred)
+    (unless (pred val)
+      (error 'coerce "value is not of expected type" val type))
+    val)
+  (match type
+    ('pathname  (x->pathname val))
+    ('string    (checked string?))
+    ('procedure (checked procedure?))
+    ('number    (checked number?))
+    ('integer   (checked integer?))
+    (('list-of elt-type)
+     (map (lambda (v)
+            (coerce v elt-type))
+          (checked list?)))
+    (else
+     (error 'coerce "invalid type" type))))
 
 (define (build-failure msg . args)
   (apply error 'build-failure msg args))
@@ -130,5 +152,14 @@
                         (put-string out-port buffer 0 (- idx esc-len))
                         (string-copy! buffer 0 buffer (- idx esc-len) idx)
                         (loop esc-len))))))))))
+
+(define vprop-setter
+  (case-lambda
+    ((slot-setter coerce)
+     (lambda (self value)
+       (self slot-setter (coerce value))))
+    ((slot-setter)
+     (lambda (self value)
+       (self slot-setter value)))))
 
 )

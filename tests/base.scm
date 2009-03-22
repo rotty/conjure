@@ -28,14 +28,19 @@
   (pathname-add-type (t 'prop 'src) "out"))
 
 (define-object <test-task> (<task>)
+  (arguments '(dest))
   (properties `((src    pathname)
                 (dest   pathname ,deduce-dest)
                 (escape string "@"))))
 
 (define-test-case base-tests task-props ()
-  (let ((t (<test-task> 'new '((src . "a")))))
+  (let ((t (<test-task> 'new #f '() '((src . "a")))))
     (test-compare pathname=? (x->pathname '(() "a")) (t 'prop 'src))
     (test-compare pathname=? (x->pathname '(() ("a" "out"))) (t 'prop 'dest))
+    (test-equal "@" (t 'prop 'escape)))
+  (let ((t (<test-task> 'new #f '("b") '((src . "a")))))
+    (test-compare pathname=? (x->pathname '(() "a")) (t 'prop 'src))
+    (test-compare pathname=? (x->pathname '(() "b")) (t 'prop 'dest))
     (test-equal "@" (t 'prop 'escape))))
 
 (run-test-suite base-tests)

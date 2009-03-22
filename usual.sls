@@ -1,4 +1,4 @@
-;;; tests.scm --- List of tests for conjure
+;;; usual.sls --- Usual tasks and steps
 
 ;; Copyright (C) 2009 Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -20,23 +20,30 @@
 ;;; Commentary:
 
 ;;; Code:
+#!r6rs
 
-((systems conjure)
- (files
-  ("utils.scm"
-   (rnrs io ports)
-   (srfi :8 receive)
-   (spells pathname)
-   (conjure utils))
-  ("base.scm"
-   (spells pathname)
-   (spells tracing)
-   (prometheus)
-   (conjure utils)
-   (conjure base))
-  ("dsl.scm"
-   (only (spells assert) cout)
-   (srfi :39 parameters)
-   (conjure base)
-   (conjure task-lib)
-   (conjure dsl))))
+(library (conjure usual)
+  (export <usual-task> <usual-step>)
+  (import (rnrs base)
+          (spells process)
+          (prometheus)
+          (conjure utils)
+          (conjure base))
+
+(define-object <usual-task> (<task>)
+  (arguments '(product))
+  (properties
+   `((product virtual ,(vprop-setter 'set-products! list))
+     (products virtual ,(vprop-setter 'set-products!))
+     (sources virtual ,(vprop-setter 'set-sources!))
+     (system (list-of string) '())))
+  (products set-products! '())
+  (sources set-sources! '()))
+
+(define-object <usual-step> (<step>)
+  ((build self resend)
+   (for-each (lambda (cmd)
+               (run-shell-command cmd))
+             (self 'prop 'system))))
+
+)

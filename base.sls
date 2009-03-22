@@ -31,8 +31,11 @@
           (srfi :1 lists)
           (only (spells misc) topological-sort)
           (spells opt-args)
+          (spells match)
           (spells pathname)
           (spells filesys)
+          (only (spells assert) cout)
+          (spells tracing)
           (conjure utils)
           (prometheus))
 
@@ -75,35 +78,35 @@
 ;;; Task
 
 (define-object <task> (*the-root-object*)
-  (name set-name! #f)
+  (name %set-name! #f)
 
-  ((new self resend props)
+  ((new self resend name args props)
    (let* ((t (self 'clone))
-          (info (t 'properties)))
+          (info (t 'properties))
+          (arg-info (t 'arguments)))
      (define (required-props)
        (filter-map (lambda (propinfo)
                      (and (null? (cddr propinfo)) (car propinfo)))
                    info))
      (define (defaulted-props)
        (filter-map (lambda (propinfo)
-                     (and (not (null? (cddr propinfo))) (car propinfo)))
+                     (match propinfo
+                       ((name 'virtual setter) #f)
+                       ((name type default)    name)
+                       (else                   #f)))
                    info))
-     (define (coerce-prop propval propinfo)
-       (let ((type (cadr propinfo)))
-         (define (checked pred)
-           (unless (pred propval)
-             (raise-task-error 'task "property value is not of expected type"
-                               propval type))
-           propval)
-         (case type
-           ((pathname)  (x->pathname propval))
-           ((string)    (checked string?))
-           ((procedure) (checked procedure?))
-           ((number)    (checked number?))
-           ((integer)   (checked integer?))
-           (else
-            (error '<task>.new "invalid property type" type)))))
-     (let loop ((specified '()) (ps props))
+     (define (combine-args+props)
+       (let loop ((props props) (arg-info arg-info) (args args))
+         (cond ((null? args)
+                props)
+               ((null? arg-info)
+                (raise-task-error 'task "superfluous arguments" args))
+               (else
+                (loop (cons (cons (car arg-info) (car args)) props)
+                      (cdr arg-info)
+                      (cdr args))))))
+     (t '%set-name! name)
+     (let loop ((specified '()) (ps (combine-args+props)))
        (if (null? ps)
            (let ((missing (lset-difference eq? (required-props) specified))
                  (defaulted (lset-difference eq? (defaulted-props) specified)))
@@ -124,11 +127,19 @@
                  (propval (cdar ps)))
              (cond ((assq propname info)
                     => (lambda (propinfo)
-                         (t 'set-prop! propname (coerce-prop propval propinfo))
+                         (case (cadr propinfo)
+                           ((virtual)
+                            ((caddr propinfo) t propval))
+                           (else
+                            (t 'set-prop! propname
+                               (coerce propval (cadr propinfo)))))
                          (loop (cons propname specified)
                                (cdr ps))))
                    (else
                     (raise-task-error 'task "no such property" propname))))))))
+
+  (arguments '())
+  (properties '())
 
   (%props %set-props! '())
 
@@ -150,6 +161,12 @@
 ;;; Project
 
 (define-object <project> (<task>)
+  (arguments '(source-dir product-dir))
+  (properties `((source-dir virtual
+                            ,(vprop-setter 'set-source-dir! x->pathname))
+                (product-dir virtual
+                             ,(vprop-setter 'set-product-dir! x->pathname))))
+
   ;; Value slots
   (product-dir set-product-dir! (make-pathname #f '() #f))
   (source-dir set-source-dir! (make-pathname #f '() #f))
@@ -161,8 +178,7 @@
 
   ;; Constructor
   ((new self resend name src-dir prod-dir)
-   (let ((reg (self 'clone)))
-     (reg 'set-name! name)
+   (let ((reg (resend #f 'new name '() '())))
      (reg 'set-source-dir! (x->pathname src-dir))
      (reg 'set-product-dir! (x->pathname prod-dir))
      (reg 'set-named-tasks! (make-eq-hashtable))
