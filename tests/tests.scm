@@ -36,6 +36,7 @@
    (conjure base))
   ("dsl.scm"
    (only (spells assert) cout)
+   (srfi :1 lists)
    (srfi :39 parameters)
    (conjure base)
    (conjure task-lib)

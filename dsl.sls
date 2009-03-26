@@ -24,6 +24,8 @@
 
 (library (conjure dsl)
   (export task
+          project
+          define-project
           current-project)
   (import (rnrs base)
           (rnrs control)
@@ -32,23 +34,11 @@
           (srfi :39 parameters)
           ;; (for (spells tracing) run expand)
           ;; (for (only (spells assert) cout) run expand)
-          (conjure task-lib))
+          (for (conjure utils) run expand)
+          (conjure base))
 
 (define-syntax task
   (lambda (stx)
-    (define (split-props props)
-      (let loop ((pos-props '())
-                 (tagged-props '())
-                 (props props))
-        (if (null? props)
-            (values (reverse pos-props) (reverse tagged-props))
-            (syntax-case (car props) ()
-              ((name vals ...)
-               (loop pos-props
-                     (cons #'`(name . ,(list vals ...)) tagged-props)
-                     (cdr props)))
-              (val
-               (loop (cons #'val pos-props) tagged-props (cdr props)))))))
     (syntax-case stx ()
       ((_ (type props ...))
        #'(task #f (type props ...)))
@@ -59,6 +49,25 @@
            #'(add-task 'type 'name
                        (list arg ...)
                        (list prop ...))))))))
+
+(define-syntax project
+  (lambda (stx)
+    (syntax-case stx ()
+      ((_ name (prop ...) body ...)
+       (let-values (((args props) (split-props #'(prop ...))))
+         (with-syntax (((arg ...) args)
+                       ((prop ...) props))
+           #'(parameterize ((current-project
+                             (<project> 'new 'name
+                                        (list arg ...)
+                                        (list prop ...))))
+               body ...
+               (current-project))))))))
+
+(define-syntax define-project
+  (syntax-rules ()
+    ((_ name (prop ...) body ...)
+     (define name (project name (prop ...) body ...)))))
 
 (define current-project (make-parameter #f))
 

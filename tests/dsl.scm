@@ -25,10 +25,22 @@
   "Domain specific language")
 
 (define-test-case dsl-tests basics ()
-  (parameterize ((current-project (<project> 'new #f "." ".")))
-    (task (file "foo"
-                (sources "bar")
-                (system "echo 'building foo'")))))
+  (let ((result '()))
+    (test-one-of equal? '((foo qux bar) (qux foo bar))
+      (let ()
+        (define (result-proc self)
+          (set! result (cons (self 'name) result)))
+        (define-project test-project ()
+          (task foo (ordinary
+                      (depends 'bar)
+                      (proc result-proc)))
+          (task bar (ordinary
+                     (proc result-proc)))
+          (task qux (ordinary
+                     (depends 'bar)
+                     (proc result-proc))))
+        (test-project 'build-rec)
+        result))))
 
 (register-builtin-tasks)
 

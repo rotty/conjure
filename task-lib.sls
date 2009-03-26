@@ -23,33 +23,16 @@
 #!r6rs
 
 (library (conjure task-lib)
-  (export find-task-prototype
-          register-task-prototype
-          register-builtin-tasks)
+  (export register-builtin-tasks)
   (import (rnrs base)
           (rnrs control)
-          (rnrs lists)
-          (rnrs mutable-pairs)
-          (spells define-values)
-          (spells alist)
-          (conjure file-task))
-
-(define-values (find-task-prototype register-task-prototype)
-  (let ((prototypes '()))
-    (values
-     (lambda (name)
-       (assq-ref prototypes name))
-     (lambda (name prototype)
-       (cond ((assq name prototypes)
-              => (lambda (entry)
-                   (set-cdr! entry prototype)))
-             (else
-              (set! prototypes (cons (cons name prototype) prototypes))))))))
+          (conjure base))
 
 (define register-builtin-tasks
   (let ((registered? #f))
     (lambda ()
       (unless registered?
+        (register-task-prototype 'ordinary <ordinary-task>)
         (register-task-prototype 'file <file-task>)
         (set! registered? #t)))))
 

@@ -57,7 +57,8 @@
                      (subst-port in-port
                                  out-port
                                  (self 'prop 'escape)
-                                 (self 'prop 'replacer))))))))
+                                 (self 'prop 'replacer))))))
+             (resend #f 'build)))
      step)))
 
 (define (deduce-dest task)

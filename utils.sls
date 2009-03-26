@@ -33,9 +33,11 @@
           pathname-strip-type
           pathname-add-type
           subst-port
-          vprop-setter)
+          vprop-setter
+          split-props)
   (import (rnrs base)
           (rnrs control)
+          (rnrs syntax-case)
           (rnrs hashtables)
           (rnrs io ports)
           (rnrs mutable-strings)
@@ -161,5 +163,19 @@
     ((slot-setter)
      (lambda (self value)
        (self slot-setter value)))))
+
+(define (split-props props)
+  (let loop ((pos-props '())
+             (tagged-props '())
+             (props props))
+    (if (null? props)
+        (values (reverse pos-props) (reverse tagged-props))
+        (syntax-case (car props) ()
+          ((name vals ...)
+           (loop pos-props
+                 (cons #'`(name . ,(list vals ...)) tagged-props)
+                 (cdr props)))
+          (val
+           (loop (cons #'val pos-props) tagged-props (cdr props)))))))
 
 )

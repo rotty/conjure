@@ -22,40 +22,52 @@
 ;;; Code:
 #!r6rs
 (library (conjure base)
-  (export <step> <task> <project>)
+  (export <step> <task> <project>
+          <ordinary-task> <ordinary-step>
+          <file-task>
+          register-task-prototype
+          find-task-prototype)
   (import (rnrs base)
           (rnrs control)
           (rnrs lists)
           (rnrs hashtables)
           (rnrs mutable-pairs)
           (srfi :1 lists)
+          (srfi :8 receive)
+          (srfi :19 time)
           (only (spells misc) topological-sort)
+          (spells define-values)
+          (spells alist)
           (spells opt-args)
           (spells match)
           (spells pathname)
           (spells filesys)
+          (spells process)
           (only (spells assert) cout)
           (spells tracing)
           (conjure utils)
+          (conjure cmd-line)
           (prometheus))
 
 ;;; Step
 
 (define-object <step> (*the-root-object*)
-  ((dependencies self resend) '())
-  ((stale? self resend) #f)
+  (prerequisites '())
+  (stale? #t)
   ((stale-rec? self resend)
    (or (self 'stale?)
-       (find (lambda (t) (t 'stale-rec?)) (self 'dependencies))))
+       (find (lambda (t) (t 'stale-rec?)) (self 'prerequisites))))
   ((build-rec self resend . maybe-force?)
    (let* ((force? (*optional maybe-force? #f))
           (deps (if force?
                     (dependency-list self)
                     (stale-dependency-list self))))
-     (send-all deps 'build))))
+     (send-all deps 'build)))
+  ((build self resend)
+   (self 'add-value-slot! 'stale? #f)))
 
 (define (dependency-dag step)
-  (let ((deps (step 'dependencies)))
+  (let ((deps (step 'prerequisites)))
     (if (null? deps)
         (list (list step))
         (concatenate (cons (list (cons step deps))
@@ -70,7 +82,9 @@
       (cond ((null? dl)
              (reverse sdl))
             ((or ((car dl) 'stale?)
-                 (not (null? (lset-intersection eq? sdl ((car dl) 'dependencies)))))
+                 (not (null? (lset-intersection eq?
+                                                sdl
+                                                ((car dl) 'prerequisites)))))
              (loop (cdr dl) (cons (car dl) sdl)))
             (else
              (loop (cdr dl) sdl))))))
@@ -177,10 +191,8 @@
   (rules set-rules! '())
 
   ;; Constructor
-  ((new self resend name src-dir prod-dir)
-   (let ((reg (resend #f 'new name '() '())))
-     (reg 'set-source-dir! (x->pathname src-dir))
-     (reg 'set-product-dir! (x->pathname prod-dir))
+  ((new self resend name args props)
+   (let ((reg (resend #f 'new name args props)))
      (reg 'set-named-tasks! (make-eq-hashtable))
      (reg 'set-task-steps! (make-eq-hashtable))
      (reg 'set-product-tasks! (make-hashtable string-hash string=?))
@@ -190,7 +202,7 @@
    (let ((task-name (task 'name))
          (prod-tasks (self 'product-tasks)))
      (when task-name
-       (hashtable-set! (self 'named-tasks) task))
+       (hashtable-set! (self 'named-tasks) task-name task))
      (for-each
       (lambda (prod)
         (hashtable-update!
@@ -210,6 +222,32 @@
      (unless (file-exists? (self 'product-dir))
        (create-directory (self 'product-dir)))
      (send-all (root-steps self) 'build-rec force?)))
+
+  ((invoke self resend cmd-line)
+   (if (null? cmd-line)
+       (self 'build-rec)
+       (let loop ((cmd-line cmd-line))
+         (define (do-regular-step+iterate)
+           ((self 'get-step (car cmd-line)) 'build-rec)
+           (loop (cdr cmd-line)))
+         (define (do-option-step+iterate task options)
+           (receive (cmd-line-rest . results)
+                    (process-cmd-line cmd-line options)
+             (let ((step (apply task 'construct-step self results)))
+               (step 'build-rec)
+               (loop cmd-line-rest))))
+         (if (not (null? cmd-line))
+             (cond ((hashtable-ref (self 'named-tasks)
+                                   (string->symbol (car cmd-line))
+                                   #f)
+                    => (lambda (task)
+                         (cond ((task 'options)
+                                => (lambda (options)
+                                     (do-option-step+iterate task options)))
+                               (else
+                                (do-regular-step+iterate)))))
+                   (else
+                    (do-regular-step+iterate)))))))
 
   ((clean self resend)
    (send-all (root-steps self) 'clean)
@@ -268,7 +306,92 @@
 
 (define (project-dependency-dag reg)
   (map (lambda (step)
-         (cons step (step 'dependencies)))
+         (cons step (step 'prerequisites)))
        (project-steps reg)))
+
+;;; Ordinary task
+
+(define-object <ordinary-task> (<task>)
+  (arguments '(product))
+  (properties
+   `((product virtual ,(vprop-setter 'set-products! list))
+     (products virtual ,(vprop-setter 'set-products!))
+     (sources virtual ,(vprop-setter 'set-sources!))
+     (depends virtual ,(vprop-setter 'set-dependencies!))
+     (system (list-of string) ())
+     (proc (list-of procedure) ())))
+  (products set-products! '())
+  (sources set-sources! '())
+  (dependencies set-dependencies! '())
+  ((construct-step self resend project)
+   (define-object step (<ordinary-step> (task self))
+     (prerequisites (map (lambda (dep) (project 'get-step dep))
+                         (self 'dependencies))))
+   step))
+
+(define-object <ordinary-step> (<step>)
+  ((build self resend)
+   (for-each (lambda (cmd)
+                 (run-shell-command cmd))
+               (self 'prop 'system))
+   (for-each (lambda (proc)
+               (proc self))
+             (self 'prop 'proc))
+   (resend #f 'build)))
+
+;;; File-based task
+
+(define-object <file-task> (<ordinary-task>)
+  ((construct-step self resend project)
+   (define (file-check source)
+     (lambda ()
+       (let ((filename (pathname-join (project 'source-dir) source)))
+         (cond ((file-exists? filename)
+                #f)
+               (else
+                (build-failure "no step found for building {0}"
+                               (x->namestring filename)))))))
+   (let* ((source-dir (project 'source-dir))
+          (prod-dir (project 'product-dir))
+          (sources (map (lambda (src)
+                          (pathname-join (if (project 'has-product? src)
+                                             prod-dir
+                                             source-dir)
+                                         src))
+                        (self 'sources)))
+          (products (map (lambda (prod)
+                           (pathname-join prod-dir prod))
+                         (self 'products))))
+     (define-object step (<ordinary-step> (task self))
+       (prerequisites (append (map (lambda (dep)
+                                     (project 'get-step dep))
+                                   (self 'dependencies))
+                              (filter-map
+                               (lambda (source)
+                                 (project 'get-step source (file-check source)))
+                               (self 'sources))))
+       (sources sources)
+       (products products)
+       ((stale? self resend)
+        (or (not (all-files-exist? products))
+            (not (all-files-exist? sources))
+            (and (not (or (null? sources) (null? products)))
+                 (time>? (last-modification-time sources)
+                         (last-modification-time products))))))
+     step)))
+
+;;; Task registry
+
+(define-values (find-task-prototype register-task-prototype)
+  (let ((prototypes '()))
+    (values
+     (lambda (name)
+       (assq-ref prototypes name))
+     (lambda (name prototype)
+       (cond ((assq name prototypes)
+              => (lambda (entry)
+                   (set-cdr! entry prototype)))
+             (else
+              (set! prototypes (cons (cons name prototype) prototypes))))))))
 
 )
