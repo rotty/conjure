@@ -82,11 +82,6 @@
            (rcs/get rcs repo dir)))
      cfg)))
 
-(define empty-pathname?
-  (let ((empty (make-pathname #f '() #f)))
-    (lambda (p)
-      (pathname=? p empty))))
-
 (define (config-inventory cfg)
   (config-fold
    (lambda (rcs dir repo rest)

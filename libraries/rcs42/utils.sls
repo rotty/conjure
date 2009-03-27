@@ -1,6 +1,6 @@
 ;;; utils.sls --- Utilities for rcs42
 
-;; Copyright (C) 2008 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2008, 2009 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -21,12 +21,17 @@
 
 ;;; Code:
 (library (rcs42 utils)
-  (export port->lines)
+  (export port->lines empty-pathname?)
   (import (rnrs)
-          (only (srfi :1 lists) unfold))
+          (only (srfi :1 lists) unfold)
+          (spells pathname))
 
   (define (port->lines port)
     (unfold eof-object? values (lambda (seed) (get-line port)) (get-line port)))
 
+  (define empty-pathname?
+    (let ((empty (make-pathname #f '() #f)))
+      (lambda (p)
+        (pathname=? p empty))))
   )
 
