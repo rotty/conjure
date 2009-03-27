@@ -58,7 +58,8 @@
        (if (file-exists? dir)
            (let ((pull
                   (lambda ()
-                    (with-working-directory dir (rcs/pull rcs repo))))
+                    (with-working-directory dir
+                      (lambda () (rcs/pull rcs repo)))))
                  (fresh
                   (lambda ()
                     (let ((tmp (temp-name dir)))
@@ -67,10 +68,10 @@
                  (push
                   (lambda ()
                     (with-working-directory dir
-                      (rcs/push rcs repo)))))
+                      (lambda () (rcs/push rcs repo))))))
              (case mode
                ((ask)
-                (choose (string-append dir " exists: ")
+                (choose (string-append (x->namestring dir) " exists: ")
                         #f
                         `((,(string-append "Update pulling from "
                                            repo)
@@ -86,9 +87,10 @@
   (config-fold
    (lambda (rcs dir repo rest)
      (let ((file-list (with-working-directory dir
-                        (map (lambda (filename)
-                               (pathname-join dir filename))
-                             (rcs/inventory rcs)))))
+                        (lambda ()
+                          (map (lambda (filename)
+                                 (pathname-join dir filename))
+                               (rcs/inventory rcs))))))
        (append rest (if (empty-pathname? dir)
                         file-list
                         (cons dir file-list)))))
@@ -100,7 +102,8 @@
    (config-fold
     (lambda (rcs dir repo rest)
       (with-working-directory dir
-        (cons (cons dir (rcs/diff rcs)) rest)))
+        (lambda ()
+          (cons (cons dir (rcs/diff rcs)) rest))))
     '()
     cfg)))
 
