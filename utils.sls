@@ -32,10 +32,22 @@
           invert-dag
           pathname-strip-type
           pathname-add-type
+
+          fold-escapes
           subst-port
+
           vprop-setter
-          split-props)
+          vprop-setter/dir
+          propinfo-type
+          split-props
+          filter-props
+
+          make-fmt-log
+          dsp-obj
+          dsp-pathname
+          dsp-time-utc)
   (import (rnrs base)
+          (rnrs lists)
           (rnrs control)
           (rnrs syntax-case)
           (rnrs hashtables)
@@ -47,17 +59,23 @@
                 string-suffix? string-copy!)
           (srfi :19 time)
           (only (srfi :43 vectors) vector-fold)
+          (spells misc)
           (spells match)
           (spells pathname)
-          (spells filesys))
+          (spells tracing)
+          (spells filesys)
+          (spells logging)
+          (fmt))
 
 (define (send-all objects msg . args)
   (for-each (lambda (o) (apply o msg args)) objects))
 
 (define (coerce val type)
+  (define (lose)
+    (error 'coerce "value is not of expected type" val type))
   (define (checked pred)
     (unless (pred val)
-      (error 'coerce "value is not of expected type" val type))
+      (lose))
     val)
   (match type
     ('pathname  (x->pathname val))
@@ -65,12 +83,25 @@
     ('procedure (checked procedure?))
     ('number    (checked number?))
     ('integer   (checked integer?))
+    ('symbol    (checked symbol?))
+    ('any       val)
     (('list-of elt-type)
      (map (lambda (v)
             (coerce v elt-type))
           (checked list?)))
+    (('singleton elt-type)
+     (unless (and (pair? val)
+                  (null? (cdr val)))
+       (lose))
+     (coerce (car val) elt-type))
     (else
      (error 'coerce "invalid type" type))))
+
+(define (propinfo-type propinfo)
+  (match (cadr propinfo)
+    (('virtual type) type)
+    ('virtual        'any)
+    (type            type)))
 
 (define (build-failure msg . args)
   (apply error 'build-failure msg args))
@@ -115,11 +146,9 @@
          (types (file-types file)))
     (if (and (not (null? types))
              (equal? (last types) type))
-        (values
-         (pathname-with-file pathname
-                             (make-file (file-name file) (drop-right types 1)))
-         #t)
-        (values pathname #f))))
+        (pathname-with-file pathname
+                            (make-file (file-name file) (drop-right types 1)))
+        pathname)))
 
 (define (pathname-add-type pathname type)
   (let ((file (pathname-file pathname)))
@@ -127,33 +156,43 @@
                         (make-file (file-name file)
                                    (append (file-types file) (list type))))))
 
-(define (subst-port in-port out-port escape replacer)
+(define (fold-escapes f0 f1 seed port escape)
   (let* ((esc-len (string-length escape))
          (buf-size (max 4000 (* esc-len 16)))
          (buffer (make-string buf-size)))
-    (let loop ((idx 0))
-      (let ((c (get-char in-port)))
+    (let loop ((idx 0) (seed seed))
+      (let ((c (get-char port)))
         (cond ((eof-object? c)
-               (put-string out-port buffer 0 idx))
+               (f1 buffer 0 idx seed))
               (else
                (string-set! buffer idx c)
                (let ((idx (+ idx 1)))
                  (cond ((and (>= idx esc-len)
                               (string-suffix? escape buffer
                                               0 esc-len 0 idx))
-                        (let ((datum (get-datum in-port)))
+                        (let ((datum (get-datum port)))
                           (cond ((eof-object? datum)
-                                 (put-string out-port buffer 0 idx))
+                                 (f1 buffer 0 idx seed))
                                 (else
-                                 (put-string out-port buffer 0 (- idx esc-len))
-                                 (replacer out-port datum)
-                                 (loop 0)))))
+                                 (loop 0 (f0 datum
+                                             (f1 buffer 0 (- idx esc-len) seed)))))))
                        ((< idx buf-size)
-                        (loop idx))
+                        (loop idx seed))
                        (else
-                        (put-string out-port buffer 0 (- idx esc-len))
-                        (string-copy! buffer 0 buffer (- idx esc-len) idx)
-                        (loop esc-len))))))))))
+                        (let ((seed (f1 buffer 0 (- idx esc-len) seed)))
+                          (string-copy! buffer 0 buffer (- idx esc-len) idx)
+                          (loop esc-len seed)))))))))))
+
+(define (subst-port in-port out-port escape replacer)
+  (fold-escapes (lambda (datum seed)
+                  (replacer out-port datum)
+                  seed)
+                (lambda (buffer start end seed)
+                  (put-string out-port buffer start end)
+                  seed)
+                (unspecific)
+                in-port
+                escape))
 
 (define vprop-setter
   (case-lambda
@@ -164,6 +203,10 @@
      (lambda (self value)
        (self slot-setter value)))))
 
+(define (vprop-setter/dir slot-setter)
+  (lambda (self v)
+    (self slot-setter (pathname-as-directory (x->pathname v)))))
+
 (define (split-props props)
   (let loop ((pos-props '())
              (tagged-props '())
@@ -171,11 +214,42 @@
     (if (null? props)
         (values (reverse pos-props) (reverse tagged-props))
         (syntax-case (car props) ()
-          ((name vals ...)
+          ((name val0 vals ...)
            (loop pos-props
-                 (cons #'`(name . ,(list vals ...)) tagged-props)
+                 (cons #'(cons 'name (list val0 vals ...)) tagged-props)
                  (cdr props)))
+          ((name . val)
+           (loop pos-props (cons #'`(name . ,val) tagged-props) (cdr props)))
           (val
            (loop (cons #'val pos-props) tagged-props (cdr props)))))))
+
+(define (filter-props names props)
+  (filter (lambda (prop)
+            (memq (car prop) names))
+          props))
+
+(define (make-fmt-log logger-name)
+  (let ((log (make-log logger-name)))
+    (lambda (level . formats)
+      (log level (lambda (port)
+                   (apply fmt port formats))))))
+
+(define (dsp-obj obj)
+  (lambda (st)
+    (if (fmt-ref st 'dsp-obj-full?)
+        ((obj 'wrt) st)
+        ((obj 'dsp) st))))
+
+(define (dsp-pathname pathname)
+  (lambda (st)
+    ((dsp (x->namestring pathname)) st)))
+
+(define (dsp-time-utc time)
+  (let* ((date (time-utc->date time))
+         (fmt (cond ((= (date-year date) (date-year (current-date)))
+                    "~b ~e ~H:~M:~S")
+                   (else
+                    "~b ~e ~Y"))))
+    (date->string date fmt)))
 
 )

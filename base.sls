@@ -43,11 +43,13 @@
           (spells pathname)
           (spells filesys)
           (spells process)
+          (spells tracing)
           (only (spells assert) cout)
           (spells tracing)
           (conjure utils)
           (conjure cmd-line)
-          (prometheus))
+          (prometheus)
+          (fmt))
 
 ;;; Step
 
@@ -106,9 +108,16 @@
        (filter-map (lambda (propinfo)
                      (match propinfo
                        ((name 'virtual setter) #f)
+                       ((name ('virtual type) setter) #f)
                        ((name type default)    name)
                        (else                   #f)))
                    info))
+     (define (singleton-prop? name)
+       (cond ((assq name info) => (lambda (propinfo)
+                                    (match (propinfo-type propinfo)
+                                      (('singleton type) #t)
+                                      (_                 #f))))
+             (else #f)))
      (define (combine-args+props)
        (let loop ((props props) (arg-info arg-info) (args args))
          (cond ((null? args)
@@ -116,11 +125,14 @@
                ((null? arg-info)
                 (raise-task-error 'task "superfluous arguments" args))
                (else
-                (loop (cons (cons (car arg-info) (car args)) props)
-                      (cdr arg-info)
-                      (cdr args))))))
+                (let ((arg-val (if (singleton-prop? (car arg-info))
+                                   (list (car args))
+                                   (car args))))
+                  (loop (cons (cons (car arg-info) arg-val) props)
+                        (cdr arg-info)
+                        (cdr args)))))))
      (t '%set-name! name)
-     (let loop ((specified '()) (ps (combine-args+props)))
+     (let loop ((specified '()) (virtuals '()) (ps (combine-args+props)))
        (if (null? ps)
            (let ((missing (lset-difference eq? (required-props) specified))
                  (defaulted (lset-difference eq? (defaulted-props) specified)))
@@ -134,21 +146,31 @@
                               (t 'set-prop! propname
                                  (if (procedure? default)
                                      (default t)
-                                     default)))))))
+                                     (coerce default
+                                             (propinfo-type propinfo)))))))))
               defaulted)
+             (for-each (lambda (proc) (proc)) virtuals)
              t)
            (let ((propname (caar ps))
                  (propval (cdar ps)))
              (cond ((assq propname info)
                     => (lambda (propinfo)
-                         (case (cadr propinfo)
-                           ((virtual)
-                            ((caddr propinfo) t propval))
+                         (loop
+                          (cons propname specified)
+                          (cond
+                           ((match propinfo
+                              ((name 'virtual setter)
+                               (lambda () (setter t propval)))
+                              ((name ('virtual type) setter)
+                               (lambda ()
+                                 (setter t (coerce propval type))))
+                              ((name type default-opt ___)
+                               (t 'set-prop! propname (coerce propval type))
+                               #f))
+                            => (lambda (v) (cons v virtuals)))
                            (else
-                            (t 'set-prop! propname
-                               (coerce propval (cadr propinfo)))))
-                         (loop (cons propname specified)
-                               (cdr ps))))
+                            virtuals))
+                          (cdr ps))))
                    (else
                     (raise-task-error 'task "no such property" propname))))))))
 
@@ -170,16 +192,27 @@
 
   ((dependencies self resend) '())
   ((sources self resend) '())
-  ((products self resend) '()))
+  ((products self resend) '())
+
+  ((disclose self resend)
+   `(task ,(self 'name) (props ,@(self '%props))))
+
+  ((wrt self resend)
+   (wrt (self 'disclose)))
+
+  ((dsp self resend)
+   (cat "[task " (self 'name) "]"))
+
+  )
 
 ;;; Project
 
 (define-object <project> (<task>)
-  (arguments '(source-dir product-dir))
-  (properties `((source-dir virtual
-                            ,(vprop-setter 'set-source-dir! x->pathname))
-                (product-dir virtual
-                             ,(vprop-setter 'set-product-dir! x->pathname))))
+  (arguments '(product-dir source-dir))
+  (properties `((source-dir (virtual (singleton pathname))
+                            ,(vprop-setter/dir 'set-source-dir!))
+                (product-dir (virtual (singleton pathname))
+                             ,(vprop-setter/dir 'set-product-dir!))))
 
   ;; Value slots
   (product-dir set-product-dir! (make-pathname #f '() #f))
@@ -192,11 +225,13 @@
 
   ;; Constructor
   ((new self resend name args props)
-   (let ((reg (resend #f 'new name args props)))
-     (reg 'set-named-tasks! (make-eq-hashtable))
-     (reg 'set-task-steps! (make-eq-hashtable))
-     (reg 'set-product-tasks! (make-hashtable string-hash string=?))
-     reg))
+   (let ((proj (resend #f 'new name args props)))
+     (proj 'set-source-dir! (calc-source-dir (proj 'source-dir) (proj 'product-dir)))
+     (proj 'set-named-tasks! (make-eq-hashtable))
+     (proj 'set-task-steps! (make-eq-hashtable))
+     (proj 'set-product-tasks! (make-hashtable pathname-hash pathname=?))
+     (log/project 'debug (cat (dsp-obj proj) " created"))
+     proj))
 
   ((add-task self resend task)
    (let ((task-name (task 'name))
@@ -215,13 +250,17 @@
            task)
          #f))
       (task 'products))
-     (self 'set-tasks! (cons task (self 'tasks)))))
+     (self 'set-tasks! (cons task (self 'tasks)))
+     (log/project 'debug (cat (self 'name) ": added " (dsp-obj task)))))
 
   ((build-rec self resend . maybe-force?)
-   (let ((force? (*optional maybe-force? #f)))
-     (unless (file-exists? (self 'product-dir))
-       (create-directory (self 'product-dir)))
-     (send-all (root-steps self) 'build-rec force?)))
+   (let ((force? (*optional maybe-force? #f))
+         (product-dir (self 'product-dir)))
+     (unless (file-exists? product-dir)
+       (create-directory product-dir))
+     (with-working-directory product-dir
+       (lambda ()
+         (send-all (root-steps self) 'build-rec force?)))))
 
   ((invoke self resend cmd-line)
    (if (null? cmd-line)
@@ -234,6 +273,9 @@
            (receive (cmd-line-rest . results)
                     (process-cmd-line cmd-line options)
              (let ((step (apply task 'construct-step self results)))
+               (log/project 'debug (cat "constructed " (dsp-obj step)
+                                        " from " (dsp-obj task)
+                                        " using " (dsp results)))
                (step 'build-rec)
                (loop cmd-line-rest))))
          (if (not (null? cmd-line))
@@ -258,41 +300,53 @@
    (and (hashtable-ref (self 'product-tasks) name #f) #t))
 
   ((get-step self resend name/product . maybe-fallback)
-   (let* ((fallback (*optional maybe-fallback
-                               (lambda ()
-                                 (build-failure "no step found for building {0}"
-                                                name/product))))
-          (task-steps (self 'task-steps))
-          (task
-           (cond ((symbol? name/product)
-                  (or (hashtable-ref (self 'named-tasks) name/product #f)
-                      (fallback)))
-                 ((string? name/product)
-                  (or (hashtable-ref (self 'product-tasks) name/product #f)
-                      ;; TODO: rules would go here
-                      (fallback)))
-                 (else
-                  (error '<project>/get-step
-                         "invalid name/product" name/product)))))
+   (let ((task-steps (self 'task-steps))
+         (task (apply self 'get-task name/product maybe-fallback)))
      (and task
           (cond ((hashtable-ref task-steps task #f)
                  => values)
                 (else
                  (let ((step (task 'construct-step self)))
+                   (log/project 'debug (cat "constructed " (dsp-obj step)
+                                            " from " (dsp-obj task)))
                    (hashtable-set! task-steps task step)
-                   step)))))))
+                   step))))))
 
-(define (root-steps reg)
+  ((get-task self resend name/product . maybe-fallback)
+   (let ((fallback (*optional maybe-fallback
+                              (lambda ()
+                                (build-failure "no step found for building {0}"
+                                               name/product)))))
+     (cond ((symbol? name/product)
+            (or (hashtable-ref (self 'named-tasks) name/product #f)
+                (fallback)))
+           ((pathname? name/product)
+            (or (hashtable-ref (self 'product-tasks) name/product #f)
+                ;; TODO: rules would go here
+                (fallback)))
+           (else
+            (error '<project>/get-task
+                   "invalid name/product" name/product)))))
+
+  ((dsp self resend)
+   (cat "[project " (self 'name) " "
+        (dsp-pathname (self 'product-dir)) " <= "
+        (dsp-pathname (self 'source-dir))
+        "]"))
+
+  )
+
+(define (root-steps proj)
   (filter-map (lambda (adj)
                 (and (null? (cdr adj)) (car adj)))
-              (precondition-dag reg)))
+              (precondition-dag proj)))
 
-(define (precondition-dag reg)
-  (invert-dag (project-dependency-dag reg)))
+(define (precondition-dag proj)
+  (invert-dag (project-dependency-dag proj)))
 
-(define (project-steps reg)
-  (let ((task-steps (reg 'task-steps)))
-    (let loop ((tasks (reg 'tasks)) (steps '()))
+(define (project-steps proj)
+  (let ((task-steps (proj 'task-steps)))
+    (let loop ((tasks (proj 'tasks)) (steps '()))
       (cond ((null? tasks)
              (reverse steps))
             ((hashtable-ref task-steps (car tasks) #f)
@@ -300,24 +354,50 @@
                   (loop (cdr tasks) (cons step steps))))
             (else
              (let* ((task (car tasks))
-                    (step (task 'construct-step reg)))
+                    (step (task 'construct-step proj)))
+               (log/project 'debug (cat "constructed " (dsp-obj step)
+                                        " from " (dsp-obj task)))
                (hashtable-set! task-steps task step)
                (loop (cdr tasks) (cons step steps))))))))
 
-(define (project-dependency-dag reg)
+(define (project-dependency-dag proj)
   (map (lambda (step)
          (cons step (step 'prerequisites)))
-       (project-steps reg)))
+       (project-steps proj)))
+
+(define (calc-source-dir src-dir prod-dir)
+  (define (lose)
+    (error 'calc-source-dir
+           "cannotate calculate source directory relative to product directory"
+           src-dir prod-dir))
+  (define (n-backs pathname)
+    (let ((o (pathname-origin pathname)))
+      (if (list? o)
+          (fold (lambda (elt n)
+                  (case elt
+                    ((back) (+ n 1))
+                    (else
+                     (lose))))
+                0 o)
+          ;; assume absolute pathname
+          0)))
+  (pathname-join
+   (make-pathname (make-list (- (length (pathname-directory prod-dir))
+                                (n-backs prod-dir))
+                             'back)
+                  '()
+                  #f)
+                 src-dir))
 
 ;;; Ordinary task
 
 (define-object <ordinary-task> (<task>)
   (arguments '(product))
   (properties
-   `((product virtual ,(vprop-setter 'set-products! list))
-     (products virtual ,(vprop-setter 'set-products!))
-     (sources virtual ,(vprop-setter 'set-sources!))
-     (depends virtual ,(vprop-setter 'set-dependencies!))
+   `((product (virtual (singleton pathname)) ,(vprop-setter 'set-products! list))
+     (products (virtual (list-of pathname)) ,(vprop-setter 'set-products!))
+     (sources (virtual (list-of pathname)) ,(vprop-setter 'set-sources!))
+     (depends (virtual (list-of symbol)) ,(vprop-setter 'set-dependencies!))
      (system (list-of string) ())
      (proc (list-of procedure) ())))
   (products set-products! '())
@@ -326,7 +406,8 @@
   ((construct-step self resend project)
    (define-object step (<ordinary-step> (task self))
      (prerequisites (map (lambda (dep) (project 'get-step dep))
-                         (self 'dependencies))))
+                         (self 'dependencies)))
+     (project project))
    step))
 
 (define-object <ordinary-step> (<step>)
@@ -355,30 +436,50 @@
           (prod-dir (project 'product-dir))
           (sources (map (lambda (src)
                           (pathname-join (if (project 'has-product? src)
-                                             prod-dir
+                                             '(())
                                              source-dir)
                                          src))
                         (self 'sources)))
-          (products (map (lambda (prod)
-                           (pathname-join prod-dir prod))
-                         (self 'products))))
-     (define-object step (<ordinary-step> (task self))
-       (prerequisites (append (map (lambda (dep)
-                                     (project 'get-step dep))
-                                   (self 'dependencies))
-                              (filter-map
-                               (lambda (source)
-                                 (project 'get-step source (file-check source)))
-                               (self 'sources))))
-       (sources sources)
-       (products products)
-       ((stale? self resend)
-        (or (not (all-files-exist? products))
-            (not (all-files-exist? sources))
-            (and (not (or (null? sources) (null? products)))
-                 (time>? (last-modification-time sources)
-                         (last-modification-time products))))))
-     step)))
+          (products (self 'products))
+          (step (resend #f 'construct-step project)))
+     (modify-object!
+      step
+      (prerequisites (append (step 'prerequisites)
+                             (filter-map
+                              (lambda (source)
+                                (project 'get-step source (file-check source)))
+                              (self 'sources))))
+      (sources sources)
+      (products products)
+      ((stale? self resend)
+
+       (let* ((missing-products (remp file-exists? products))
+              (missing-sources (remp file-exists? sources))
+              (source-lmt (and (null? missing-sources)
+                               (last-modification-time sources)))
+              (product-lmt (and (null? missing-products)
+                                (last-modification-time products))))
+         (define (dsp-staleness)
+           (lambda (st)
+             (cond ((not (null? missing-products))
+                    ((cat (dsp-obj self) " is stale; missing products: "
+                          (join dsp-pathname missing-products " ")) st))
+                   ((not (null? missing-sources))
+                    ((cat (dsp-obj self) " is stale; missing sources: "
+                          (join dsp-pathname missing-sources)) st))
+                   ((and source-lmt product-lmt (time>? source-lmt product-lmt))
+                    ((cat (dsp-obj self) " is stale; products older ("
+                          (dsp-time-utc product-lmt) ") than sources ("
+                          (dsp-time-utc source-lmt) ")") st)))))
+
+         (log/task 'debug (dsp-staleness))
+         (or (not (null? missing-products))
+             (not (null? missing-sources))
+             (and source-lmt product-lmt (time>? source-lmt product-lmt))))))))
+
+  ((dsp self resend)
+   (cat "[file-task " (join dsp-pathname (self 'products) " ")
+        " <= " (join dsp-pathname (self 'sources) " ") "]")))
 
 ;;; Task registry
 
@@ -393,5 +494,10 @@
                    (set-cdr! entry prototype)))
              (else
               (set! prototypes (cons (cons name prototype) prototypes))))))))
+
+;; Log procedures
+
+(define log/project (make-fmt-log '(conjure project)))
+(define log/task (make-fmt-log '(conjure task)))
 
 )

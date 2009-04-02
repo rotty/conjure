@@ -22,7 +22,7 @@
 ;;; Code:
 #!r6rs
 
-(library (conjure subst-task)
+(library (conjure tasks subst)
   (export <subst-task>)
   (import (rnrs base)
           (rnrs control)
@@ -32,7 +32,16 @@
           (spells filesys)
           (prometheus)
           (conjure utils)
-          (conjure file-task))
+          (conjure base))
+
+(define (deduce-dest task)
+  (receive (pathname had-type?)
+           (pathname-strip-type (task 'prop 'src) "in")
+    (unless had-type?
+      (raise-task-error
+       'subst
+       "no destination given, and source does not have file type 'in'"))
+    pathname))
 
 (define-object <subst-task> (<file-task>)
   (properties `((src       pathname)
@@ -60,14 +69,5 @@
                                  (self 'prop 'replacer))))))
              (resend #f 'build)))
      step)))
-
-(define (deduce-dest task)
-  (receive (pathname had-type?)
-           (pathname-strip-type (task 'prop 'src) "in")
-    (unless had-type?
-      (raise-task-error
-       'subst
-       "no destination given, and source does not have file type 'in'"))
-    pathname))
 
 )

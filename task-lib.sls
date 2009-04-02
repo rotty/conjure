@@ -26,7 +26,10 @@
   (export register-builtin-tasks)
   (import (rnrs base)
           (rnrs control)
-          (conjure base))
+          (conjure base)
+          (conjure tasks subst)
+          (conjure tasks configure))
+
 
 (define register-builtin-tasks
   (let ((registered? #f))
@@ -34,6 +37,8 @@
       (unless registered?
         (register-task-prototype 'ordinary <ordinary-task>)
         (register-task-prototype 'file <file-task>)
+        (register-task-prototype 'subst <subst-task>)
+        (register-task-prototype 'configure <configure-task>)
         (set! registered? #t)))))
 
 )

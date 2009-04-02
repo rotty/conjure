@@ -26,6 +26,7 @@
   (export task
           project
           define-project
+          with-project
           current-project)
   (import (rnrs base)
           (rnrs control)
@@ -68,6 +69,10 @@
   (syntax-rules ()
     ((_ name (prop ...) body ...)
      (define name (project name (prop ...) body ...)))))
+
+(define (with-project project thunk)
+  (parameterize ((current-project project))
+    (thunk)))
 
 (define current-project (make-parameter #f))
 
