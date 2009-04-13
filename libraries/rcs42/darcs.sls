@@ -14,6 +14,7 @@
           (spells pathname)
           (spells filesys)
           (spells process)
+          (spells sysutils)
           (spells delimited-readers)
           (spells misc)
           (spells opt-args)
