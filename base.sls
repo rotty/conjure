@@ -29,10 +29,10 @@
           find-task-prototype)
   (import (rnrs base)
           (rnrs control)
-          (rnrs lists)
+          (only (rnrs lists) assq remp)
           (rnrs hashtables)
           (rnrs mutable-pairs)
-          (srfi :1 lists)
+          (except (srfi :1 lists) for-each map)
           (srfi :8 receive)
           (srfi :19 time)
           (only (spells misc) topological-sort)
@@ -404,11 +404,10 @@
   (sources set-sources! '())
   (dependencies set-dependencies! '())
   ((construct-step self resend project)
-   (define-object step (<ordinary-step> (task self))
+   (object (<ordinary-step> (task self))
      (prerequisites (map (lambda (dep) (project 'get-step dep))
                          (self 'dependencies)))
-     (project project))
-   step))
+     (project project))))
 
 (define-object <ordinary-step> (<step>)
   ((build self resend)
@@ -463,10 +462,10 @@
            (lambda (st)
              (cond ((not (null? missing-products))
                     ((cat (dsp-obj self) " is stale; missing products: "
-                          (join dsp-pathname missing-products " ")) st))
+                          (fmt-join dsp-pathname missing-products " ")) st))
                    ((not (null? missing-sources))
                     ((cat (dsp-obj self) " is stale; missing sources: "
-                          (join dsp-pathname missing-sources)) st))
+                          (fmt-join dsp-pathname missing-sources)) st))
                    ((and source-lmt product-lmt (time>? source-lmt product-lmt))
                     ((cat (dsp-obj self) " is stale; products older ("
                           (dsp-time-utc product-lmt) ") than sources ("
@@ -478,8 +477,8 @@
              (and source-lmt product-lmt (time>? source-lmt product-lmt))))))))
 
   ((dsp self resend)
-   (cat "[file-task " (join dsp-pathname (self 'products) " ")
-        " <= " (join dsp-pathname (self 'sources) " ") "]")))
+   (cat "[file-task " (fmt-join dsp-pathname (self 'products) " ")
+        " <= " (fmt-join dsp-pathname (self 'sources) " ") "]")))
 
 ;;; Task registry
 

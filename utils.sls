@@ -23,7 +23,12 @@
 #!r6rs
 
 (library (conjure utils)
-  (export send-all
+  (export list-intersperse
+          port->sexps
+
+          send-all
+          object
+
           coerce
           build-failure
           raise-task-error
@@ -47,13 +52,12 @@
           dsp-pathname
           dsp-time-utc)
   (import (rnrs base)
-          (rnrs lists)
           (rnrs control)
           (rnrs syntax-case)
           (rnrs hashtables)
           (rnrs io ports)
           (rnrs mutable-strings)
-          (srfi :1 lists)
+          (except (srfi :1) for-each map)
           (srfi :8 receive)
           (only (srfi :13 strings)
                 string-suffix? string-copy!)
@@ -65,10 +69,27 @@
           (spells tracing)
           (spells filesys)
           (spells logging)
+          (prometheus)
           (fmt))
+
+(define (list-intersperse src-l elem)
+  (if (null? src-l) src-l
+    (let loop ((l (cdr src-l)) (dest (cons (car src-l) '())))
+      (if (null? l) (reverse dest)
+        (loop (cdr l) (cons (car l) (cons elem dest)))))))
 
 (define (send-all objects msg . args)
   (for-each (lambda (o) (apply o msg args)) objects))
+
+(define-syntax object
+  (syntax-rules ()
+    ((object clause ...)
+     (let ()
+       (define-object obj clause ...)
+       obj))))
+
+(define (port->sexps port)
+  (unfold eof-object? values (lambda (seed) (get-datum port)) (get-datum port)))
 
 (define (coerce val type)
   (define (lose)

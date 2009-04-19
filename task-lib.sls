@@ -27,6 +27,7 @@
   (import (rnrs base)
           (rnrs control)
           (conjure base)
+          (conjure cc)
           (conjure tasks subst)
           (conjure tasks configure))
 
@@ -39,6 +40,7 @@
         (register-task-prototype 'file <file-task>)
         (register-task-prototype 'subst <subst-task>)
         (register-task-prototype 'configure <configure-task>)
+        (register-task-prototype 'cc-conf <cc-conf-task>)
         (set! registered? #t)))))
 
 )

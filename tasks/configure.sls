@@ -30,11 +30,11 @@
   (export <configure-task>)
   (import (rnrs base)
           (rnrs control)
-          (rnrs lists)
+          (rnrs mutable-pairs)
           (rnrs records syntactic)
           (rnrs io simple)
           (rnrs io ports)
-          (srfi :1 lists)
+          (except (srfi :1 lists) for-each map)
           (srfi :8 receive)
           (srfi :19 time)
           (spells time-lib)
@@ -59,12 +59,16 @@
 
 (define-object <configure-task> (<file-task>)
   (properties `((cache-file (singleton pathname) (",config.cache"))
+                (fetchers (list-of procedure))
                 (escape (singleton string) ("#!@"))
                 (ext (singleton string) ("in"))
                 (produce (virtual (list-of any)) ,produce-vprop-setter)))
 
   ((construct-step self resend project)
-   (let ((step (resend #f 'construct-step project)))
+   (let ((step (resend #f 'construct-step project))
+         (fetchers (map (lambda (fetcher)
+                          (fetcher project))
+                        (self 'prop 'fetchers))))
      (modify-object!
       step
       (productions (map (lambda (src entry)
@@ -74,7 +78,7 @@
       ((build self resend)
        (let* ((cache-file (self 'prop 'cache-file))
               (escape (self 'prop 'escape))
-              (new-cache (rebuild-cache (read-cache cache-file)
+              (new-cache (rebuild-cache (read-cache cache-file fetchers)
                                         (self 'sources)
                                         escape)))
          (for-each
@@ -127,19 +131,13 @@
            (log/conf 'info (cat "generating " (dsp-pathname prod)))
            (call-with-input-file (x->namestring src)
              (lambda (in-port)
-               (define (read-n n)
-                 (let ((part (get-string-n in-port n)))
-                   (unless (and (string? part)  (= (string-length part) n))
-                     (error 'subst-file/cache
-                            "cache inconistency detected for file" src))
-                   part))
                (call-with-output-file/atomic (x->pathname prod)
                  (lambda (out-port)
                    (subst-port in-port
                                out-port
                                escape
                                (lambda (port datum)
-                                 (put-string out-port "--XXX--"))))))))
+                                 (put-string out-port (cache-get cache datum)))))))))
           (else
            (log/conf 'info (cat "using " (dsp-pathname src) " verbatim as "
                                 (dsp-pathname prod) " (no substitions detected)"))
@@ -147,14 +145,8 @@
 
 ;;; Cache
 
-(define (cache-fileinfos cache)
-  (vector-ref cache 0))
-
-(define (cache-kvs cache)
-  (vector-ref cache 1))
-
-(define (make-cache fileinfos kvs)
-  (vector fileinfos kvs))
+(define-record-type cache
+  (fields fileinfos kvs fetchers))
 
 (define (cache-fileinfo cache pathname)
   (assoc (x->namestring pathname) (cache-fileinfos cache)))
@@ -162,21 +154,58 @@
 (define (make-fileinfo namestring time)
   (cons namestring (time-utc->posix-timestamp time)))
 
+(define (cache-get cache datum)
+  (cond ((assoc datum (cache-kvs cache))
+         => (lambda (entry)
+              (cond ((cdr entry) => values)
+                    (else
+                     (update-cache! cache datum)
+                     (unless (cdr entry)
+                       (error 'cache-get "failed to update cache for datum" datum))
+                     (cdr entry)))))
+        (else
+         (error 'cache-get "unknown datum requested" datum))))
+
+(define (update-cache! cache datum)
+  (let ((kvs (cache-kvs cache))
+        (results (cache-fetch cache datum)))
+    (unless results
+      (error 'update-cache! "unable to find fetch datum" datum))
+    (for-each (lambda (kv)
+                (cond ((assoc (car kv) kvs)
+                       => (lambda (entry)
+                            (set-cdr! entry (cdr kv))))
+                      (else
+                       (error 'update-cache!
+                              "fetcher returned unknown entry" kv))))
+              results)))
+
+(define (cache-fetch cache datum)
+  (let ((missing (filter-map (lambda (entry)
+                               (and (not (cdr entry)) (car entry)))
+                         (cache-kvs cache))))
+    (or-map (lambda (fetcher)
+              (fetcher missing datum))
+            (cache-fetchers cache))))
+
 (define fileinfo-namestring car)
 (define (fileinfo-time finfo)
   (posix-timestamp->time-utc (cdr finfo)))
 
-(define (read-cache filename)
+(define (read-cache filename fetchers)
   (if (file-exists? filename)
       (call-with-input-file (x->namestring filename)
         (lambda (port)
           (let ((vec (read port)))
             (make-cache (vector-ref vec 0)
-                        (vector-ref vec 1)))))
-      (make-cache '() '())))
+                        (vector-ref vec 1)
+                        fetchers))))
+      (make-cache '() '() fetchers)))
 
 (define (write-cache port cache)
-  (write cache port))
+  (write (vector (cache-fileinfos cache)
+                 (cache-kvs cache))
+         port))
 
 (define (file-mtime file)
   (and (file-exists? file)
@@ -187,7 +216,7 @@
              (kvs (cache-kvs old-cache))
              (sources sources))
     (if (null? sources)
-        (make-cache finfos kvs)
+        (make-cache finfos kvs (cache-fetchers old-cache))
         (let* ((src (car sources))
                (finfo (cache-fileinfo old-cache src))
                (src-fmt (file-modification-time src)))
