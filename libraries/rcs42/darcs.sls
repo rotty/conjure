@@ -8,7 +8,7 @@
           (rnrs lists)
           (rnrs io simple)
           (rnrs io ports)
-          (srfi :1 lists)
+          (only (srfi :1 lists) filter-map)
           (srfi :8 receive)
           (srfi :13 strings)
           (spells pathname)
