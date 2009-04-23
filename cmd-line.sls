@@ -21,11 +21,10 @@
 
 ;;; Code:
 #!r6rs
+
 (library (conjure cmd-line)
   (export process-cmd-line)
-  (import (rnrs base)
-          (spells args-fold*))
-
+  (import (rnrs base))
 
 (define (process-cmd-line cmd-line options)
   cmd-line)
