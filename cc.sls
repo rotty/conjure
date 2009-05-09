@@ -161,6 +161,7 @@
                         ((object (<runner>)
                            (stdout 'sexps)
                            ((term-successful self resend argv status stdout stderr)
+                            (delete-file prog-path)
                             stdout)) 'run (list prog-path))))))
               (else
                #f))))))
