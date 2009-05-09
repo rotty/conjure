@@ -25,15 +25,10 @@
   "Utilities")
 
 (define-test-case utils-tests pathname-strip-type ()
-  (receive (p t?) (pathname-strip-type (x->pathname "bar.scm") "scm")
-    (test-compare pathname=? (make-pathname #f '() "bar") p)
-    (test-equal t? #t))
-  (receive (p t?) (pathname-strip-type (x->pathname "foxy.lady") "scm")
-    (test-compare
-     pathname=?
-     (make-pathname #f '() (make-file "foxy" "lady"))
-     p)
-    (test-equal t? #f)))
+  (test-compare pathname=? (make-pathname #f '() "bar") 
+    (pathname-strip-type (x->pathname "bar.scm") "scm"))
+  (test-compare pathname=? (make-pathname #f '() (make-file "foxy" "lady"))
+    (pathname-strip-type (x->pathname "foxy.lady") "scm")))
 
 (define (make-subst-string n pos middle)
   (string-append (make-string pos #\x)
@@ -54,3 +49,7 @@
   (test-subst 9000 3999 "@(1)" "@" "1234567"))
 
 (run-test-suite utils-tests)
+
+;; Local Variables:
+;; scheme-indent-styles: (trc-testing)
+;; End:
