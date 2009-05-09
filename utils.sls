@@ -24,7 +24,6 @@
 
 (library (conjure utils)
   (export list-intersperse
-          port->sexps
 
           send-all
           object
@@ -87,9 +86,6 @@
      (let ()
        (define-object obj clause ...)
        obj))))
-
-(define (port->sexps port)
-  (unfold eof-object? values (lambda (seed) (get-datum port)) (get-datum port)))
 
 (define (coerce val type)
   (define (lose)
