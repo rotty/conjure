@@ -1,0 +1,50 @@
+# -*- org -*-
+
+* Conjure (R6RS version)
+
+This is yet another attempt at a build tool, akin to make(1), in
+Scheme.
+
+Conjure is used as a build tool for the spells[0] and sbank[1], where
+it's task is mostly file generation by substition, similiar to what
+autoconf-generated "configure" scripts do.
+
+It currently contains the following functionality to fulfill the above
+purpose:
+
+** Dependency engine
+
+This is currently using file modifiction times (no MD5 goodness yet)
+
+** An internal DSL
+
+Acts as a "build language", embedded in Scheme. An example from
+spells:
+
+#+BEGIN_SRC lisp
+(task cc (cc-conf))
+
+(task (configure
+       (produce '((("spells" "foreign") "config.sls")
+                  <= (("libraries" "foreign") "config.sls.in")))
+       (fetchers (cc-fetcher 'cc)
+                 (hostinfo-fetcher))))
+#+END_SRC
+
+** Configuration module
+
+Allows tailoring files to a specific environment by doing substitions
+on template files. An example from spells:
+
+#+BEGIN_SRC lisp
+(define c-type-alignof
+  (let ((target '("#!@(host-info os)"
+                  "#!@(host-info cpu)")))
+     ...))
+#+END_SRC
+
+In this code fragment, the #!@(...) "forms" are substituted at build
+time with the hosts' operating system and CPU.
+
+The configuration module uses a cache, avoiding a potentially costly
+re-calculation of substitution value on each source file change.
