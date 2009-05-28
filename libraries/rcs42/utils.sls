@@ -21,7 +21,8 @@
 
 ;;; Code:
 (library (rcs42 utils)
-  (export port->lines empty-pathname?)
+  (export port->lines empty-pathname?
+          log-cmd-line)
   (import (rnrs)
           (only (srfi :1 lists) unfold)
           (spells pathname))
@@ -33,5 +34,24 @@
     (let ((empty (make-pathname #f '() #f)))
       (lambda (p)
         (pathname=? p empty))))
+
+  (define (->str x)
+    (cond ((string? x)   x)
+          ((pathname? x) (x->namestring x))
+          ((symbol? x)   (symbol->string x))
+          (else
+           (error '->str "cannot coerce to string" x))))
+  
+  (define (log-cmd-line cmd-line)
+    (display "% ")
+    (let loop ((strs (map ->str cmd-line)))
+      (unless (null? strs)
+        (display (car strs))
+        (unless (null? (cdr strs))
+          (display " "))
+        (loop (cdr strs))))
+    (newline)
+    (flush-output-port (current-output-port)))
+
   )
 

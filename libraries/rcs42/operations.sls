@@ -1,6 +1,6 @@
 ;;; operations.sls --- Basic RCS operations
 
-;; Copyright (C) 2008 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2008, 2009 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -32,8 +32,8 @@
           (spells operations))
 
   (define-operation (rcs/get rcs repo dir))
-  (define-operation (rcs/pull rcs repo))
-  (define-operation (rcs/push rcs repo))
+  (define-operation (rcs/pull rcs repo branch))
+  (define-operation (rcs/push rcs repo branch))
   (define-operation (rcs/inventory rcs))
   (define-operation (rcs/diff rcs))
   

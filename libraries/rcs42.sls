@@ -34,7 +34,7 @@
           config-dist
 
           default-rcs
-          darcs)
+          get-rcs)
   (import (rcs42 operations)
           (rcs42 darcs)
           (rcs42 config)

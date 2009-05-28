@@ -73,9 +73,9 @@
 
 (define darcs
   (object #f
-    ((rcs/pull self repo)
+    ((rcs/pull self repo branch)
      (run-darcs/log 'pull "-a" repo))
-    ((rcs/push self repo)
+    ((rcs/push self repo branch)
      (run-darcs/log 'push "-a" repo))
     ((rcs/inventory self)
      (inventory))

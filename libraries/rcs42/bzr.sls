@@ -34,10 +34,15 @@
           (spells operations)
           (spells pathname)
           (spells process)
+          (spells sysutils)
           (rcs42 operations))
 
+  (define bzr-command
+    (or (find-exec-path "bzr")
+        (error 'bzr-command "bzr executable not found")))
+  
   (define (run-bzr command . args)
-    (apply run-process #f "bzr" (symbol->string command) args))
+    (apply run-process #f bzr-command (symbol->string command) args))
 
   (define (run-bzr/log command . args)
     (for-each display `("% bzr " ,command " " ,(string-join args " ") #\newline))
@@ -50,7 +55,7 @@
                                         (make-pathname #f '() #f)))
                        f))
                 (receive (status sig filenames)
-                         (run-process/lines #f "bzr" "ls")
+                         (run-process/lines #f bzr-command "ls")
                   (if (= 0 status)
                       filenames
                       '()))))
@@ -59,7 +64,7 @@
     (define (lose msg . irritants)
       (apply error 'bzr-diff msg irritants))
     (receive (status sig lines)
-             (run-process/lines #f "bzr" "diff")
+             (run-process/lines #f bzr-command "diff")
       (cond (sig
              (lose "'bzr diff' killed by signal" sig))
             ((not (memv status '(0 1 2)))
@@ -68,7 +73,7 @@
              lines))))
 
   (define (info)
-    (receive (status sig lines) (run-process/lines #f "bzr" "info")
+    (receive (status sig lines) (run-process/lines #f bzr-command "info")
       ;; FIXME: error checking
       lines))
 
@@ -80,7 +85,7 @@
 
   (define bzr
     (object #f
-      ((rcs/pull self repo)
+      ((rcs/pull self repo branch)
        (if (lightweight?)
            (run-bzr/log 'update)
            (run-bzr/log 'pull repo)))

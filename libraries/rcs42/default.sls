@@ -1,6 +1,6 @@
 ;;; default.sls --- provides the `default-rcs' parameter
 
-;; Copyright (C) 2008 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2008, 2009 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -26,9 +26,10 @@
   (export default-rcs
           get-rcs)
   (import (rnrs base)
-          (spells parameter)
+          (srfi :39 parameters)
           (rcs42 darcs)
-          (rcs42 bzr))
+          (rcs42 bzr)
+          (rcs42 git))
 
   (define default-rcs (make-parameter darcs))
 
@@ -36,6 +37,7 @@
     (case name
       ((darcs) darcs)
       ((bzr)   bzr)
+      ((git)   git)
       (else
        (error 'make-rcs "unknown RCS" name))))
   )

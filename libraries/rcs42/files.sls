@@ -8,7 +8,7 @@
           (rnrs exceptions)
           (rnrs io ports)
           (srfi :8 receive)
-          (spells parameter)
+          (srfi :39 parameters)
           (spells format)
           (spells delimited-readers)
           (spells filesys)

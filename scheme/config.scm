@@ -29,13 +29,12 @@
   (unless (list? config) (lose "malformed config" config))
   (map (lambda (prj)
          (let ((l (length prj)))
-           (unless (and (list? prj) (<= 2 l 3))
-             (lose prj))
-           (case l
-              ((2) (list (default-rcs) (car prj) (cadr prj)))
-              ((3) (list (get-rcs (cadr prj)) (car prj) (caddr prj)))
+           (cond 
+              ((= l 2) (list (default-rcs) (car prj) (cadr prj) '()))
+              ((> l 2)
+               (list (get-rcs (cadr prj)) (car prj) (caddr prj) (cdddr prj)))
               (else
-               (assertion-violation 'config-fold "impossible!")))))
+               (lose prj)))))
        config))
 
 (define (config-fold kons nil cfg)
@@ -44,48 +43,57 @@
   (unless (file-readable? cfg)
     (lose "file not readable" cfg))
   (fold (lambda (prj rest)
-          (kons (car prj) (pathname-as-directory (cadr prj)) (caddr prj) rest))
+          (kons (car prj)
+                (pathname-as-directory (cadr prj))
+                (caddr prj)
+                (cadddr prj)
+                rest))
         nil
         (normalize-config (call-with-input-file cfg read))))
 
 (define (config-for-each proc cfg)
-  (config-fold (lambda (rcs dir repo rest) (proc rcs dir repo) rest) (unspecific) cfg))
+  (config-fold (lambda (rcs dir repo opts rest)
+                 (apply proc rcs dir repo opts)
+                 rest)
+               (unspecific)
+               cfg))
 
 (define (build-config cfg . args)
   (let-optionals* args ((mode 'ask))
     (config-for-each
-     (lambda (rcs dir repo)
-       (if (file-exists? dir)
-           (let ((pull
-                  (lambda ()
-                    (with-working-directory dir
-                      (lambda () (rcs/pull rcs repo)))))
-                 (fresh
-                  (lambda ()
-                    (let ((tmp (temp-name dir)))
-                      (rename-file dir tmp)
-                      (rcs/get rcs repo dir))))
-                 (push
-                  (lambda ()
-                    (with-working-directory dir
-                      (lambda () (rcs/push rcs repo))))))
-             (case mode
-               ((ask)
-                (choose (string-append (x->namestring dir) " exists: ")
-                        #f
-                        `((,(string-append "Update pulling from "
-                                           repo)
-                           ,pull)
-                          ("Get a fresh copy" ,fresh))))
-               ((pull) (pull))
-               ((fresh) (fresh))
-               ((push)  (push))))
-           (rcs/get rcs repo dir)))
+     (lambda (rcs dir repo . opts)
+       (let-optionals* opts ((branch #f))
+         (if (file-exists? dir)
+             (let ((pull
+                    (lambda ()
+                      (with-working-directory dir
+                        (lambda () (rcs/pull rcs repo branch)))))
+                   (fresh
+                    (lambda ()
+                      (let ((tmp (temp-name dir)))
+                        (rename-file dir tmp)
+                        (rcs/get rcs repo dir))))
+                   (push
+                    (lambda ()
+                      (with-working-directory dir
+                        (lambda () (rcs/push rcs repo branch))))))
+               (case mode
+                 ((ask)
+                  (choose (string-append (x->namestring dir) " exists: ")
+                          #f
+                          `((,(string-append "Update pulling from "
+                                             repo)
+                             ,pull)
+                            ("Get a fresh copy" ,fresh))))
+                 ((pull) (pull))
+                 ((fresh) (fresh))
+                 ((push)  (push))))
+             (rcs/get rcs repo dir))))
      cfg)))
 
 (define (config-inventory cfg)
   (config-fold
-   (lambda (rcs dir repo rest)
+   (lambda (rcs dir repo opts rest)
      (let ((file-list (with-working-directory dir
                         (lambda ()
                           (map (lambda (filename)
@@ -100,7 +108,7 @@
 (define (config-diff cfg . args)
   (reverse
    (config-fold
-    (lambda (rcs dir repo rest)
+    (lambda (rcs dir repo opts rest)
       (with-working-directory dir
         (lambda ()
           (cons (cons dir (rcs/diff rcs)) rest))))
@@ -122,7 +130,7 @@
 
 (define (config-extra-dist cfg)
   (config-fold
-   (lambda (rcs dir repo extra-dist)
+   (lambda (rcs dir repo opts extra-dist)
      (let ((sys-def (pathname-join dir "sys-def.scm")))
        (append
         (map (lambda (filename)
