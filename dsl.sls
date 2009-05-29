@@ -27,11 +27,13 @@
           project
           define-project
           with-project
-          current-project)
+          current-project
+          procedure-from-environment/lazy)
   (import (rnrs base)
           (rnrs control)
           (rnrs syntax-case)
           (rnrs io simple)
+          (rnrs eval)
           (srfi :39 parameters)
           ;; (for (spells tracing) run expand)
           ;; (for (only (spells assert) cout) run expand)
@@ -81,5 +83,15 @@
     (unless prototype
       (error 'add-task "no prototype with that name found" type))
     ((current-project) 'add-task (prototype 'new name args props))))
+
+
+(define-syntax procedure-from-environment/lazy
+  (syntax-rules ()
+    ((_ expr import ...)
+     (let ((proc #f))
+       (lambda args
+         (unless proc
+           (set! proc (eval 'expr (environment 'import ...))))
+         (apply proc args))))))
 
 )
