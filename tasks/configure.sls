@@ -58,17 +58,17 @@
     (task 'set-sources! (map cdr productions))))
 
 (define-object <configure-task> (<file-task>)
-  (properties `((cache-file (singleton pathname) (",config.cache"))
-                (fetchers (list-of procedure))
-                (escape (singleton string) ("#!@"))
-                (ext (singleton string) ("in"))
-                (produce (virtual (list-of any)) ,produce-vprop-setter)))
+  (properties (append
+               `((cache-file (singleton pathname) (",config.cache"))
+                 (fetchers (list-of procedure))
+                 (escape (singleton string) ("#!@"))
+                 (ext (singleton string) ("in"))
+                 (produce (virtual (list-of any)) ,produce-vprop-setter))
+               (filter-props '(depends)
+                             (<file-task> 'properties))))
 
   ((construct-step self resend project)
-   (let ((step (resend #f 'construct-step project))
-         (fetchers (map (lambda (fetcher)
-                          (fetcher project))
-                        (self 'prop 'fetchers))))
+   (let ((step (resend #f 'construct-step project)))
      (modify-object!
       step
       (productions (map (lambda (src entry)
@@ -78,9 +78,13 @@
       ((build self resend)
        (let* ((cache-file (self 'prop 'cache-file))
               (escape (self 'prop 'escape))
-              (new-cache (rebuild-cache (read-cache cache-file fetchers)
-                                        (self 'sources)
-                                        escape)))
+              (new-cache (rebuild-cache
+                          (read-cache cache-file
+                                      (map (lambda (fetcher)
+                                             (fetcher project))
+                                           (self 'prop 'fetchers)))
+                          (self 'sources)
+                          escape)))
          (for-each
           (lambda (entry)
             (let* ((prod (car entry))
