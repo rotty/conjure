@@ -144,6 +144,14 @@
    '()
    cfg))
 
+(define tar-command
+  (or (find-exec-path "tar")
+      (error 'tar-command "`tar' not found in PATH")))
+
+(define rm-command
+  (or (find-exec-path "rm")
+      (error 'tar-command "`rm' not found in PATH")))
+
 (define (config-dist cfg . args)
   (let ((dot-pos (string-index-right cfg #\.))
         (slash-pos (or (string-index-right cfg #\/) -1)))
@@ -155,14 +163,18 @@
       (let ((dirname (pathname-as-directory name)))
         (create-directory dirname)
         (for-each (lambda (filename)
-                    (let ((dst-name (pathname-join dirname filename)))
-                      (if (file-directory? filename)
-                          (create-directory* dst-name)
-                          (create-hard-link filename dst-name))))
+                    (let* ((dst-name (pathname-join dirname filename))
+                           (dst-dir (pathname-with-file dst-name #f)))
+                      (cond ((file-directory? filename)
+                             (create-directory* dst-name))
+                            (else
+                             (unless (file-exists? dst-dir)
+                               (create-directory* dst-dir))
+                             (create-hard-link filename dst-name)))))
                   (append (config-inventory cfg)
                           (config-extra-dist cfg)))
-        (run-process #f "tar" "-czf" (string-append name ".tar.gz") name)
-        (run-process #f "rm" "-rf" name)))))
+        (run-process #f tar-command "-czf" (string-append name ".tar.gz") name)
+        (run-process #f rm-command "-rf" name)))))
 
 (define (port->sexps port)
   (unfold eof-object? values (lambda (seed) (read port)) (read port)))

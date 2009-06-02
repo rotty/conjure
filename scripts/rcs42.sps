@@ -40,7 +40,9 @@
        (apply proc cfg (append extra-args args))))))
 
 (define diff (make-lister config-diff print-lines))
-(define inventory (make-lister config-inventory println))
+(define inventory (make-lister config-inventory
+                               (lambda (pathname)
+                                 (println (x->namestring pathname)))))
 (define dist (make-runner config-dist))
 (define push (make-runner build-config 'push))
 (define pull (make-runner build-config 'pull))

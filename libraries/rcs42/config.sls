@@ -40,6 +40,7 @@
           (spells pathname)
           (spells filesys)
           (spells process)
+          (spells sysutils)
           (spells include)
           (spells tracing)
           (rcs42 utils)
