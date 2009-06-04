@@ -55,7 +55,7 @@
                                         (make-pathname #f '() #f)))
                        f))
                 (receive (status sig filenames)
-                         (run-process/lines #f bzr-command "ls")
+                         (run-process/lines #f bzr-command "ls" "--recursive")
                   (if (= 0 status)
                       filenames
                       '()))))
