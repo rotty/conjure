@@ -131,7 +131,7 @@
 
 (define (cc-out-sizeof type expr)
   `(printf ,(string-append "(" (fmt #f (wrt expr)) " . \"%lu\")\n")
-           (%cast (unsigned long) (sizeof ,type))))
+           (%cast (unsigned long) (sizeof ,(c-type type)))))
 
 (define cc-probes
   `((c-sizeof ,cc-probe-sizeof)))
