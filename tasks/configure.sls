@@ -50,12 +50,28 @@
           (conjure utils)
           (conjure base))
 
+(define-record-type production
+  (fields
+   (immutable product)
+   (immutable template)
+   (mutable fender)))
+
+(define (production-fended? p)
+  (cond ((production-fender p)
+         => (lambda (fender)
+              (if (procedure? fender)
+                  (let ((fended? (not (fender))))
+                    (production-fender-set! p fended?)
+                    fended?)
+                  #t)))
+        (else #f)))
+
 (define (produce-vprop-setter task value)
   (let ((productions (calc-productions value (task 'prop 'ext))))
     (task 'set-prop! 'productions productions)
     (task 'set-products! (cons (task 'prop 'cache-file)
-                               (map car productions)))
-    (task 'set-sources! (map cdr productions))))
+                               (map production-product productions)))
+    (task 'set-sources! (map production-template productions))))
 
 (define-object <configure-task> (<file-task>)
   (properties (append
@@ -71,10 +87,8 @@
    (let ((step (resend #f 'construct-step project)))
      (modify-object!
       step
-      (productions (map (lambda (src entry)
-                          (cons (car entry) src))
-                        (step 'sources)
-                        (self 'prop 'productions)))
+      (productions (updated-productions (self 'prop 'productions)
+                                        (step 'sources)))
       ((build self resend)
        (let* ((cache-file (self 'prop 'cache-file))
               (escape (self 'prop 'escape))
@@ -85,18 +99,7 @@
                                            (self 'prop 'fetchers)))
                           (self 'sources)
                           escape)))
-         (for-each
-          (lambda (entry)
-            (let* ((prod (car entry))
-                   (prod-fmt (file-mtime prod))
-                   (src (cdr entry))
-                   (src-fmt (file-mtime src)))
-              (if (or (not prod-fmt)
-                      (time<? prod-fmt src-fmt))
-                  (subst-file/cache prod src escape new-cache)
-                  (log/conf 'info
-                            (cat (dsp-pathname prod) " is up to date")))))
-          (self 'productions))
+         (process-productions (self 'productions) escape new-cache)
          (call-with-output-file/atomic cache-file
            (lambda (port)
              (write-cache port new-cache)))))
@@ -107,9 +110,9 @@
            (or
             (not cache-fmt)
             (or-map
-             (lambda (entry)
-               (let ((prod (car entry))
-                     (src (cdr entry)))
+             (lambda (p)
+               (let ((prod (production-product p))
+                     (src (production-template p)))
                  (or (not (file-exists? prod))
                      (not (file-exists? src))
                      (let ((src-fmt (file-modification-time src)))
@@ -123,11 +126,23 @@
   (map (lambda (elt)
          (match elt
            ((prod '<= src)
-            (cons (x->pathname prod) (x->pathname src)))
+            (make-production (x->pathname prod) (x->pathname src) #f))
+           ((prod '<= src ('? fender))
+            (make-production (x->pathname prod) (x->pathname src) fender))
            (prod
             (let ((prod (x->pathname prod)))
-              (cons prod (pathname-add-type prod ext))))))
+              (make-production prod (pathname-add-type prod ext) #f)))))
        lst))
+
+;; Returns a list of productions with updated templates (as the final
+;; template pathnames are determined at step-construction time).
+(define (updated-productions productions templates)
+  (map (lambda (p template)
+         (make-production (production-product p)
+                          template
+                          (production-fender p)))
+       productions
+       templates))
 
 (define (subst-file/cache prod src escape cache)
   (let ((finfo (cache-fileinfo cache src)))
@@ -146,6 +161,21 @@
            (log/conf 'info (cat "using " (dsp-pathname src) " verbatim as "
                                 (dsp-pathname prod) " (no substitions detected)"))
            (copy-file src prod)))))
+
+(define (process-productions productions escape cache)
+  (for-each
+   (lambda (p)
+     (unless (production-fended? p)
+       (let* ((prod (production-product p))
+              (prod-fmt (file-mtime prod))
+              (src (production-template p))
+              (src-fmt (file-mtime src)))
+         (if (or (not prod-fmt)
+                 (time<? prod-fmt src-fmt))
+             (subst-file/cache prod src escape cache)
+             (log/conf 'info
+                       (cat (dsp-pathname prod) " is up to date"))))))
+   productions))
 
 ;;; Cache
 
