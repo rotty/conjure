@@ -69,7 +69,7 @@
           (spells filesys)
           (spells logging)
           (prometheus)
-          (fmt))
+          (spells fmt))
 
 (define (list-intersperse src-l elem)
   (if (null? src-l) src-l

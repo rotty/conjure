@@ -49,7 +49,7 @@
           (conjure utils)
           (conjure cmd-line)
           (prometheus)
-          (fmt))
+          (spells fmt))
 
 ;;; Step
 
