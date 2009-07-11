@@ -1,0 +1,57 @@
+;;; utils.sls --- Utilities for rcs42
+
+;; Copyright (C) 2008, 2009 Andreas Rottmann <a.rottmann@gmx.at>
+
+;; Author: Andreas Rottmann <a.rottmann@gmx.at>
+
+;; This program is free software; you can redistribute it and/or
+;; modify it under the terms of the GNU General Public License
+;; as published by the Free Software Foundation; either version 3
+;; of the License, or (at your option) any later version.
+
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU General Public License for more details.
+
+;; You should have received a copy of the GNU General Public License
+;; along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+;;; Commentary:
+
+;;; Code:
+(library (rcs42 utils)
+  (export port->lines empty-pathname?
+          log-cmd-line)
+  (import (rnrs)
+          (only (srfi :1 lists) unfold)
+          (spells pathname))
+
+  (define (port->lines port)
+    (unfold eof-object? values (lambda (seed) (get-line port)) (get-line port)))
+
+  (define empty-pathname?
+    (let ((empty (make-pathname #f '() #f)))
+      (lambda (p)
+        (pathname=? p empty))))
+
+  (define (->str x)
+    (cond ((string? x)   x)
+          ((pathname? x) (x->namestring x))
+          ((symbol? x)   (symbol->string x))
+          (else
+           (error '->str "cannot coerce to string" x))))
+  
+  (define (log-cmd-line cmd-line)
+    (display "% ")
+    (let loop ((strs (map ->str cmd-line)))
+      (unless (null? strs)
+        (display (car strs))
+        (unless (null? (cdr strs))
+          (display " "))
+        (loop (cdr strs))))
+    (newline)
+    (flush-output-port (current-output-port)))
+
+  )
+
