@@ -5,4 +5,4 @@
   (import (rnrs)
           (spells include))
   
-  (include-file ((rcs42 scheme) prompt)))
+  (include-file ((rcs42 private) prompt)))

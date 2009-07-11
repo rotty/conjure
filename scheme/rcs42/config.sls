@@ -49,4 +49,4 @@
           (rcs42 operations)
           (rcs42 default))
 
-  (include-file ((rcs42 scheme) config)))
+  (include-file ((rcs42 private) config)))

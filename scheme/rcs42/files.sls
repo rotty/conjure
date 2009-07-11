@@ -15,5 +15,5 @@
           (spells sysutils)
           (spells include))
   
-  (include-file ((rcs42 scheme) files))
-  (include-file ((rcs42 scheme) scsh-files)))
+  (include-file ((rcs42 private) files))
+  (include-file ((rcs42 private) scsh-files)))

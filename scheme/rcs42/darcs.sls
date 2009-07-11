@@ -27,4 +27,4 @@
           (rcs42 prompt)
           (rcs42 operations))
   
-  (include-file ((rcs42 scheme) darcs)))
+  (include-file ((rcs42 private) darcs)))
