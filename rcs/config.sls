@@ -1,4 +1,4 @@
-;;; config.scm --- Handling of "configs", as pioneered by GNU Arch
+;;; config.sls --- Handling of "configs", as pioneered by GNU Arch
 
 ;; Copyright (C) 2008, 2009 Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -20,7 +20,34 @@
 ;;; Commentary:
 
 ;;; Code:
+#!r6rs
 
+(library (conjure rcs config)
+  (export build-config
+          config-inventory
+          config-diff
+          config-dist)
+  (import (rnrs base)
+          (rnrs control)
+          (rnrs lists)
+          (rnrs io simple)
+          (srfi :8 receive)
+          (only (srfi :1 lists) fold unfold append-map)
+          (only (srfi :13 strings) substring/shared string-index-right)
+          (spells opt-args)
+          (spells misc)
+          (spells match)
+          (spells pathname)
+          (spells filesys)
+          (spells process)
+          (spells sysutils)
+          (spells include)
+          (spells tracing)
+          (conjure rcs utils)
+          (conjure rcs files)
+          (conjure rcs prompt)
+          (conjure rcs operations)
+          (conjure rcs default))
 
 (define (normalize-config config)
   (define (lose form)
@@ -178,3 +205,5 @@
 
 (define (port->sexps port)
   (unfold eof-object? values (lambda (seed) (read port)) (read port)))
+
+)

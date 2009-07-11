@@ -4,8 +4,8 @@
         (srfi :8 receive)
         (spells string-utils)
         (spells pathname)
-        (rcs42)
-        (rcs42 utils))
+        (conjure rcs)
+        (conjure rcs utils))
 
 (define (list-ref* lst n default)
   (do ((i 0 (+ i 1))

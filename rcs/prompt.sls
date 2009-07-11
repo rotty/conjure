@@ -1,3 +1,9 @@
+#!r6rs
+
+(library (conjure rcs prompt)
+  (export y-or-n choose)
+  (import (rnrs)
+          (spells include))
 
 (define (y-or-n prompt)
   (member (begin (display prompt) (read)) '(y yes ok)))
@@ -22,3 +28,5 @@
                      (map cadr real-spec))
            (display "Option: ")
            (loop (read))))))))
+
+)

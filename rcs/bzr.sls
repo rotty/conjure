@@ -22,7 +22,7 @@
 ;;; Code:
 #!r6rs
 
-(library (rcs42 bzr)
+(library (conjure rcs bzr)
   (export bzr)
   (import (except (rnrs base) string-copy string-for-each string->list)
           (rnrs lists)
@@ -35,7 +35,7 @@
           (spells pathname)
           (spells process)
           (spells sysutils)
-          (rcs42 operations))
+          (conjure rcs operations))
 
   (define bzr-command
     (or (find-exec-path "bzr")

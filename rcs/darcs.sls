@@ -1,4 +1,31 @@
-;; -*- mode: scheme; scheme48-package: rcs42.darcs; -*-
+#!r6rs
+
+(library (conjure rcs darcs)
+  (export darcs)
+  
+  (import (except (rnrs base) string-copy string-for-each string->list)
+          (rnrs control)
+          (rnrs lists)
+          (rnrs io simple)
+          (rnrs io ports)
+          (only (srfi :1 lists) filter-map)
+          (srfi :8 receive)
+          (srfi :13 strings)
+          (spells pathname)
+          (spells filesys)
+          (spells process)
+          (spells sysutils)
+          (spells delimited-readers)
+          (spells misc)
+          (spells opt-args)
+          (spells tracing)
+          (spells include)
+          (spells operations)
+          (xitomatl irregex)
+          (conjure rcs utils)
+          (conjure rcs files)
+          (conjure rcs prompt)
+          (conjure rcs operations))
 
 (define darcs-command
   (or (find-exec-path "darcs")
@@ -83,3 +110,5 @@
      (diff))
     ((rcs/get self repo dir)
      (run-darcs/log 'get repo dir))))
+  
+)

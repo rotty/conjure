@@ -22,14 +22,14 @@
 ;;; Code:
 #!r6rs
 
-(library (rcs42 default)
+(library (conjure rcs default)
   (export default-rcs
           get-rcs)
   (import (rnrs base)
           (srfi :39 parameters)
-          (rcs42 darcs)
-          (rcs42 bzr)
-          (rcs42 git))
+          (conjure rcs darcs)
+          (conjure rcs bzr)
+          (conjure rcs git))
 
   (define default-rcs (make-parameter darcs))
 

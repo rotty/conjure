@@ -22,7 +22,7 @@
 ;;; Code:
 #!r6rs
 
-(library (rcs42 operations)
+(library (conjure rcs operations)
   (export rcs/get
           rcs/pull
           rcs/push

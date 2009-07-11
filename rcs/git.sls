@@ -22,7 +22,7 @@
 ;;; Code:
 #!r6rs
 
-(library (rcs42 git)
+(library (conjure rcs git)
   (export git)
   
   (import (except (rnrs base) string-copy string-for-each string->list)
@@ -42,10 +42,10 @@
           (spells opt-args)
           (spells operations)
           (xitomatl irregex)
-          (rcs42 utils)
-          (rcs42 files)
-          (rcs42 prompt)
-          (rcs42 operations))
+          (conjure rcs utils)
+          (conjure rcs files)
+          (conjure rcs prompt)
+          (conjure rcs operations))
 
 (define git-command
   (or (find-exec-path "git")

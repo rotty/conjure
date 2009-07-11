@@ -22,7 +22,7 @@
 ;;; Code:
 #!r6rs
 
-(library (rcs42)
+(library (conjure rcs)
   (export rcs/pull
           rcs/push
           rcs/inventory
@@ -35,9 +35,9 @@
 
           default-rcs
           get-rcs)
-  (import (rcs42 operations)
-          (rcs42 darcs)
-          (rcs42 config)
-          (rcs42 default))
+  (import (conjure rcs operations)
+          (conjure rcs darcs)
+          (conjure rcs config)
+          (conjure rcs default))
 
   )

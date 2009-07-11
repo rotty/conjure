@@ -20,7 +20,7 @@
 ;;; Commentary:
 
 ;;; Code:
-(library (rcs42 utils)
+(library (conjure rcs utils)
   (export port->lines empty-pathname?
           log-cmd-line)
   (import (rnrs)
