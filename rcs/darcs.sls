@@ -22,44 +22,33 @@
           (spells include)
           (spells operations)
           (xitomatl irregex)
+          (rename (only (conjure utils) object)
+                  (object obj))
           (conjure rcs utils)
           (conjure rcs files)
           (conjure rcs prompt)
           (conjure rcs operations))
 
-(define darcs-command
-  (or (find-exec-path "darcs")
-      (error 'darcs-command "darcs executable not found")))
+(define <darcs-runner> (make-cmd-runner "darcs"))
+(define <darcs-runner/log> (make-logged-runner <darcs-runner>))
+(define <darcs-runner/stdout> (make-stdout-runner <darcs-runner>))
 
 (define (run-darcs command . args)
-  (define (lose msg . irritants)
-    (apply error
-           (string-append "darcs command '" (symbol->string command) "' " msg)
-           irritants))
-  (receive (status sig)
-           (apply run-process #f darcs-command (symbol->string command) args)
-    (cond (sig
-           (lose "killed by signal" sig))
-          ((not (= status 0))
-           (lose "exited with non-zero status" status)))))
+  (<darcs-runner> 'run (cons (symbol->string command) args)))
 
 (define (run-darcs/log command . args)
-  (for-each display `("% darcs " ,command " " ,(string-join args " ") #\newline))
-  (flush-output-port (current-output-port))
-  (apply run-darcs command args))
+  (<darcs-runner/log> 'run (cons (symbol->string command) args)))
 
 (define (repos) (call-with-input-file "_darcs/prefs/repos" port->lines))
 
-(define (inventory)
-  (filter-map (lambda (f)
-                (and (not (pathname=? (x->pathname f)
-                                      (make-pathname #f '() #f)))
-                     f))
-              (receive (status sig filenames)
-                       (run-process/lines #f darcs-command "query" "files")
-                (if (= 0 status)
-                    filenames
-                    '()))))
+(define inventory
+  (let ((runner (obj (<darcs-runner/stdout>) (stdout 'lines))))
+    (lambda ()
+      (filter-map (lambda (f)
+                    (and (not (pathname=? (x->pathname f)
+                                          (make-pathname #f '() #f)))
+                         f))
+                  (runner 'run '("query" "files"))))))
 
 (define (pull)
   (let* ((repos (repos))
@@ -83,20 +72,16 @@
                 (map (lambda (repo) `(,repo ,(lambda () (run-darcs 'push repo))))
                      repos)))))
 
-
-(define (diff)
-  (define (lose msg . irritants)
-    (apply error 'darcs-diff msg irritants))
-  (receive (status sig lines)
-           (run-process/lines #f darcs-command "diff" "-u")
-    (cond (sig
-           (lose "'darcs diff' killed by signal" sig))
-          ((not (memv status '(0 1)))
-           (lose "'darcs diff' exited with unexpected status" status))
-          ((= status 1)
-           (cdr lines)) ;; throw away output if there were no changes
-          (else
-           lines))))
+(define diff
+  (let ((runner (obj (<darcs-runner>)
+                  (stdout 'lines)
+                  ((term-successful self resend argv status stdout stderr)
+                   (case status
+                     ((0) stdout)
+                     ((1)  ; throw away output if there were no changes
+                      (cdr stdout)))))))
+    (lambda ()
+      (runner 'run '("diff" "-u")))))
 
 (define darcs
   (object #f
@@ -112,3 +97,7 @@
      (run-darcs/log 'get repo dir))))
   
 )
+
+;; Local Variables:
+;; scheme-indent-styles: ((object 1) (obj 1))
+;; End:

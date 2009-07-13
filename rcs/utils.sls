@@ -21,14 +21,24 @@
 
 ;;; Code:
 (library (conjure rcs utils)
-  (export port->lines empty-pathname?
-          log-cmd-line)
+  (export port->lines
+          empty-pathname?
+          make-cmd-runner
+          make-logged-runner
+          make-stdout-runner)
   (import (rnrs)
           (only (srfi :1 lists) unfold)
-          (spells pathname))
+          (spells lazy)
+          (spells string-utils)
+          (spells sysutils)
+          (spells pathname)
+          (conjure run)
+          (conjure utils))
 
   (define (port->lines port)
-    (unfold eof-object? values (lambda (seed) (get-line port)) (get-line port)))
+    (unfold eof-object?
+            values
+            (lambda (seed) (get-line port)) (get-line port)))
 
   (define empty-pathname?
     (let ((empty (make-pathname #f '() #f)))
@@ -53,5 +63,29 @@
     (newline)
     (flush-output-port (current-output-port)))
 
+  (define (make-cmd-runner cmd)
+    (let ((cmd-path
+           (delay (or (find-exec-path cmd)
+                      (error 'make-cmd-runner
+                             (string-substitute "executable `{0}' not found"
+                                                (list cmd)))))))
+      (object (<runner>)
+        ((run self resend args)
+         (resend #f 'run (cons (force cmd-path) args))))))
+
+  (define (make-logged-runner runner)
+    (object (runner)
+      ((pre-run self resend argv)
+       (log-cmd-line argv)
+       (resend #f 'pre-run argv))))
+
+  (define (make-stdout-runner runner)
+    (object (runner)
+      ((term-successful self resend argv status stdout stderr)
+       stdout)))
+  
   )
 
+;; Local Variables:
+;; scheme-indent-styles: ((object 1))
+;; End:

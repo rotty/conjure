@@ -41,57 +41,40 @@
           (spells misc)
           (spells opt-args)
           (spells operations)
-          (xitomatl irregex)
+          (rename (only (conjure utils) object)
+                  (object obj))
           (conjure rcs utils)
           (conjure rcs files)
           (conjure rcs prompt)
           (conjure rcs operations))
 
-(define git-command
-  (or (find-exec-path "git")
-      (error 'git-command "git executable not found")))
-
-(define (run-git command . args)
-  (define (lose msg . irritants)
-    (apply error
-           'run-git
-           (string-append "git command '" (symbol->string command) "' " msg)
-           irritants))
-  (receive (status sig)
-           (apply run-process #f git-command (symbol->string command) args)
-    (cond (sig
-           (lose "killed by signal" sig))
-          ((not (= status 0))
-           (lose "exited with non-zero status" status)))))
+(define <git-runner> (make-cmd-runner "git"))
+(define <git-runner/log> (make-logged-runner <git-runner>))
+(define <git-runner/stdout> (make-stdout-runner <git-runner>))
 
 (define (run-git/log command . args)
-  (log-cmd-line (cons* "git" command args))
-  (apply run-git command args))
+  (<git-runner/log> 'run (cons (symbol->string command) args)))
 
-(define (inventory)
-  (filter-map (lambda (f)
-                (and (not (pathname=? (x->pathname f)
-                                      (make-pathname #f '() #f)))
-                     f))
-              (receive (status sig filenames)
-                       (run-process/lines #f git-command "ls-files")
-                (if (= 0 status)
-                    filenames
-                    '()))))
+(define inventory
+  (let ((runner (obj (<git-runner/stdout>) (stdout 'lines))))
+    (lambda ()
+      (filter-map (lambda (f)
+                    (and (not (pathname=? (x->pathname f)
+                                          (make-pathname #f '() #f)))
+                         f))
+                  (runner 'run '("ls-files"))))))
 
-(define (diff)
-  (define (lose msg . irritants)
-    (apply error 'git-diff msg irritants))
-  (receive (status sig lines)
-           (run-process/lines #f git-command "diff" "--exit-code" "HEAD")
-    (cond (sig
-           (lose "'git diff' killed by signal" sig))
-          ((not (memv status '(0 1)))
-           (lose "'git diff' exited with unexpected status" status))
-          ((= status 1)
-           (cdr lines)) ;; throw away output if there were no changes
-          (else
-           lines))))
+(define diff
+  (let ((runner (obj (<git-runner>)
+                  (stdout 'lines)
+                  (success-codes '(0 1))
+                  ((term-successful self resend argv status stdout stderr)
+                   (case status
+                     ((0) stdout)
+                     ((1)  ; throw away output if there were no changes
+                      (cdr stdout)))))))
+    (lambda ()
+      (runner 'run '("diff" "--exit-code" "HEAD")))))
 
 (define git
   (object #f
@@ -107,3 +90,7 @@
      (run-git/log 'clone repo dir))))
 
 )
+
+;; Local Variables:
+;; scheme-indent-styles: ((object 1) (obj 1))
+;; End:

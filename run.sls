@@ -23,16 +23,33 @@
 #!r6rs
 
 (library (conjure run)
-  (export <runner>)
+  (export <runner>
+          runner-error?
+          runner-error-argv)
   (import (rnrs)
           (srfi :8 receive)
           (only (srfi :13 strings) string-join)
           (spells process)
           (spells ports)
           (spells pathname)
+          (only (spells filesys) working-directory)
+          (spells string-utils)
           (spells misc)
           (prometheus)
           (conjure utils))
+
+(define-condition-type &runner-error &error
+  make-runner-error runner-error?
+  (argv runner-error-argv))
+
+(define (runner-error argv message args)
+  (raise (condition (make-who-condition '<runner>)
+                    (make-runner-error argv)
+                    (make-message-condition
+                     (string-substitute message
+                                        (cons* `(argv . ,(argv->string argv))
+                                               args)
+                                        'braces)))))
 
 (define-object <runner> (*the-root-object*)
   (env #f)
@@ -43,6 +60,7 @@
   ((run self resend argv)
    (let ((stdout (self 'stdout))
          (stderr (self 'stderr)))
+     (self 'pre-run argv)
      (receive
          (status sig stdout stderr)
          (cond ((and (eqv? stdout #t)
@@ -72,16 +90,27 @@
               (self 'term-successful argv status stdout stderr))
              (else
               (self 'term-unsuccessful argv status stdout stderr))))))
+
+  ((pre-run self resend argv)
+   (unspecific))
   
   ((term-successful self resend argv status stdout stderr)
    (unspecific))
   ((term-unsuccessful self resend argv status stdout stderr)
-   (build-failure (string-append "child process ({0}) terminated with "
-                                 "unexpected status {1} (not in {3})")
-                  (argv->string argv) status (self 'success-codes)))
+   (runner-error argv
+                 (string-append
+                  "child process ({argv}) terminated with unexpected"
+                  " status {status} (not in {success-codes})\n"
+                  "working directory: {cwd}")
+                 `((status . ,status)
+                   (success-codes . ,(string-join (map number->string
+                                                       (self 'success-codes))
+                                                  ", "))
+                   (cwd . ,(x->namestring (working-directory))))))
   ((term-signal self resend argv sig)
-   (build-failure "child process ({0}) terminated by signal {1}"
-                  (argv->string argv) sig)))
+   (runner-error argv
+                 "child process ({argv}) terminated by signal {sig}"
+                 `((sig . ,sig)))))
 
 (define (argv->string argv)
   (define (->str x)

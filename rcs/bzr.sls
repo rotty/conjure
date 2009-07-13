@@ -35,47 +35,41 @@
           (spells pathname)
           (spells process)
           (spells sysutils)
+          (conjure run)
+          (rename (only (conjure utils) object)
+                  (object obj))
+          (conjure rcs utils)
           (conjure rcs operations))
 
-  (define bzr-command
-    (or (find-exec-path "bzr")
-        (error 'bzr-command "bzr executable not found")))
-  
-  (define (run-bzr command . args)
-    (apply run-process #f bzr-command (symbol->string command) args))
+  (define <bzr-runner> (make-cmd-runner "bzr"))
+  (define <bzr-runner/log> (make-logged-runner <bzr-runner>))
+  (define <bzr-runner/stdout> (make-stdout-runner <bzr-runner>))
 
   (define (run-bzr/log command . args)
-    (for-each display `("% bzr " ,command " " ,(string-join args " ") #\newline))
-    (flush-output-port (current-output-port))
-    (apply run-bzr command args))
+    (<bzr-runner/log> 'run (cons (symbol->string command) args)))
 
-  (define (inventory)
-    (filter-map (lambda (f)
-                  (and (not (pathname=? (x->pathname f)
-                                        (make-pathname #f '() #f)))
-                       f))
-                (receive (status sig filenames)
-                         (run-process/lines #f bzr-command "ls" "--recursive")
-                  (if (= 0 status)
-                      filenames
-                      '()))))
+  (define inventory
+    (let ((runner (obj (<bzr-runner/stdout>)
+                    (stdout 'lines))))
+      (lambda ()
+        (filter-map (lambda (f)
+                      (and (not (pathname=? (x->pathname f)
+                                            (make-pathname #f '() #f)))
+                           f))
+                    (runner 'run '("ls" "--recursive"))))))
 
-  (define (diff)
-    (define (lose msg . irritants)
-      (apply error 'bzr-diff msg irritants))
-    (receive (status sig lines)
-             (run-process/lines #f bzr-command "diff")
-      (cond (sig
-             (lose "'bzr diff' killed by signal" sig))
-            ((not (memv status '(0 1 2)))
-             (lose "'bzr diff' exited with unexpected status" status))
-            (else
-             lines))))
+  (define diff
+    (let ((runner (obj (<bzr-runner/stdout>)
+                    (stdout 'lines)
+                    (success-codes '(0 1 2)))))
+      (lambda ()
+        (runner 'run '("diff")))))
 
-  (define (info)
-    (receive (status sig lines) (run-process/lines #f bzr-command "info")
-      ;; FIXME: error checking
-      lines))
+  (define info
+    (let ((runner (obj (<bzr-runner/stdout>)
+                    (stdout 'lines))))
+      (lambda ()
+        (runner 'run '("info")))))
 
   (define (lightweight?)
     (and (exists (lambda (line)
@@ -93,3 +87,7 @@
       ((rcs/diff self)      (diff))))
 
   )
+
+;; Local Variables:
+;; scheme-indent-styles: ((object 1) (obj 1))
+;; End:
