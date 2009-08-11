@@ -254,7 +254,7 @@
      (log/project 'debug (cat (self 'name) ": added " (dsp-obj task)))))
 
   ((build-rec self resend . maybe-force?)
-   (let ((force? (*optional maybe-force? #f))
+   (let ((force? (:optional maybe-force? #f))
          (product-dir (self 'product-dir)))
      (unless (file-exists? product-dir)
        (create-directory product-dir))
@@ -313,7 +313,7 @@
                    step))))))
 
   ((get-task self resend name/product . maybe-fallback)
-   (let ((fallback (*optional maybe-fallback
+   (let ((fallback (:optional maybe-fallback
                               (lambda ()
                                 (build-failure "no step found for building {0}"
                                                name/product)))))

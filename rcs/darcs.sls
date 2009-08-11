@@ -21,7 +21,7 @@
           (spells tracing)
           (spells include)
           (spells operations)
-          (xitomatl irregex)
+          (spells irregex)
           (rename (only (conjure utils) object)
                   (object obj))
           (conjure rcs utils)
