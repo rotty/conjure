@@ -191,10 +191,11 @@
         (create-directory dirname)
         (for-each (lambda (filename)
                     ; the file might be in RCS, but removed in checkout
-                    (when (file-exists? filename) 
+                    (when (file-exists? filename)
                       (let* ((dst-name (pathname-join dirname filename))
                              (dst-dir (pathname-with-file dst-name #f)))
-                        (cond ((file-directory? filename)
+                        (cond ((and (not (file-symbolic-link? filename))
+                                    (file-directory? filename))
                                (create-directory* dst-name))
                               (else
                                (unless (file-exists? dst-dir)
