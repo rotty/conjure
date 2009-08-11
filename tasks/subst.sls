@@ -43,31 +43,29 @@
        "no destination given, and source does not have file type 'in'"))
     pathname))
 
+(define-object <subst-step> (<file-step>)
+  ((build self resend)
+   (call-with-input-file (x->namestring (self 'prop 'src))
+     (lambda (in-port)
+       (call-with-output-file/atomic (self 'prop 'dest)
+         (lambda (out-port)
+           (subst-port in-port
+                       out-port
+                       (self 'prop 'escape)
+                       (self 'prop 'replacer))))))
+   (resend #f 'build)))
+
 (define-object <subst-task> (<file-task>)
   (properties `((src       pathname)
                 (dest      pathname  ,deduce-dest)
                 (escape    string    "#!@")
                 (replacer  procedure)))
+  (step-prototype <subst-step>)
   
   ((new self resend props)
    (let ((task (resend #f 'new props)))
      (task 'add-value-slot! 'sources (list (task 'prop 'src)))
      (task 'add-value-slot! 'products (list (task 'prop 'dest)))
-     task))
-  
-  ((construct-step self resend project)
-   (let ((step (resend #f 'construct-step project)))
-     (step 'add-method-slot! 'build
-           (lambda (self resend)
-             (call-with-input-file (x->namestring (self 'prop 'src))
-               (lambda (in-port)
-                 (call-with-output-file/atomic (self 'prop 'dest)
-                   (lambda (out-port)
-                     (subst-port in-port
-                                 out-port
-                                 (self 'prop 'escape)
-                                 (self 'prop 'replacer))))))
-             (resend #f 'build)))
-     step)))
+     task)))
 
 )

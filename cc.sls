@@ -166,19 +166,20 @@
               (else
                #f))))))
 
+(define-object <cc-conf-step> (<step>)
+  (%cc %set-cc! #f)
+  
+  ((build self resend)
+   (resend #f 'build)
+   (cond ((self '%cc)
+          => values)
+         (else
+          (let ((cc (cc-conf self)))
+            (self '%set-cc! cc)
+            cc)))))
+
 (define-object <cc-conf-task> (<task>)
-  ((construct-step self resend project)
-   (object (<step> (task self))
-     (%cc %set-cc! #f)
-     (project project)
-     ((build self resend)
-      (resend #f 'build)
-      (cond ((self '%cc)
-             => values)
-            (else
-             (let ((cc (cc-conf self)))
-               (self '%set-cc! cc)
-               cc)))))))
+  (step-prototype <cc-conf-step>))
 
 (define (cc-conf step)
   (let ((gcc-path (find-exec-path "gcc")))

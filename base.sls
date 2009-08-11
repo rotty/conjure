@@ -24,7 +24,7 @@
 (library (conjure base)
   (export <step> <task> <project>
           <ordinary-task> <ordinary-step>
-          <file-task>
+          <file-step> <file-task>
           register-task-prototype
           find-task-prototype)
   (import (rnrs base)
@@ -35,7 +35,7 @@
           (except (srfi :1 lists) for-each map)
           (srfi :8 receive)
           (srfi :19 time)
-          (only (spells misc) topological-sort)
+          (only (spells misc) topological-sort unspecific)
           (spells define-values)
           (spells alist)
           (spells opt-args)
@@ -56,17 +56,33 @@
 (define-object <step> (*the-root-object*)
   (prerequisites '())
   (stale? #t)
+
   ((stale-rec? self resend)
    (or (self 'stale?)
        (find (lambda (t) (t 'stale-rec?)) (self 'prerequisites))))
+  
   ((build-rec self resend . maybe-force?)
-   (let* ((force? (*optional maybe-force? #f))
-          (deps (if force?
-                    (dependency-list self)
-                    (stale-dependency-list self))))
-     (send-all deps 'build)))
+   (let ((force? (:optional maybe-force? #f)))
+     (send-all (if force?
+                   (dependency-list self)
+                   (stale-dependency-list self))
+               'build)))
+  
   ((build self resend)
-   (self 'add-value-slot! 'stale? #f)))
+   (self 'add-value-slot! 'stale? #f))
+  
+  ((clean self resend)
+   (unspecific))
+
+  ((prop self resend property)
+   ((self 'task) 'prop property))
+
+  ((name self resend)
+   ((self 'task) 'name))
+  
+  ((dsp self resend)
+   (cat "[step " ((self 'task) 'name)
+        " [" (fmt-join dsp-obj (self 'prerequisites) "") "]]")))
 
 (define (dependency-dag step)
   (let ((deps (step 'prerequisites)))
@@ -95,7 +111,9 @@
 
 (define-object <task> (*the-root-object*)
   (name %set-name! #f)
-
+  (options #f)
+  (step-prototype <step>)
+  
   ((new self resend name args props)
    (let* ((t (self 'clone))
           (info (t 'properties))
@@ -194,6 +212,13 @@
   ((sources self resend) '())
   ((products self resend) '())
 
+  ((construct-step self resend project)
+   (object ((self 'step-prototype))
+     (task self)
+     (prerequisites (map (lambda (dep) (project 'get-step dep))
+                         (self 'dependencies)))
+     (project project)))
+  
   ((disclose self resend)
    `(task ,(self 'name) (props ,@(self '%props))))
 
@@ -206,6 +231,15 @@
   )
 
 ;;; Project
+
+(define-object <project-step> (<step>)
+  (stale? #t)
+  
+  ((clean self resend)
+   ((self 'task) 'clean))
+  
+  ((build self resend)
+   ((self 'task) 'build-rec)))
 
 (define-object <project> (<task>)
   (arguments '(product-dir source-dir))
@@ -222,7 +256,8 @@
   (product-tasks set-product-tasks! #f)
   (tasks set-tasks! '())
   (rules set-rules! '())
-
+  (step-prototype <project-step>)
+  
   ;; Constructor
   ((new self resend name args props)
    (let ((proj (resend #f 'new name args props)))
@@ -391,24 +426,6 @@
 
 ;;; Ordinary task
 
-(define-object <ordinary-task> (<task>)
-  (arguments '(product))
-  (properties
-   `((product (virtual (singleton pathname)) ,(vprop-setter 'set-products! list))
-     (products (virtual (list-of pathname)) ,(vprop-setter 'set-products!))
-     (sources (virtual (list-of pathname)) ,(vprop-setter 'set-sources!))
-     (depends (virtual (list-of symbol)) ,(vprop-setter 'set-dependencies!))
-     (system (list-of string) ())
-     (proc (list-of procedure) ())))
-  (products set-products! '())
-  (sources set-sources! '())
-  (dependencies set-dependencies! '())
-  ((construct-step self resend project)
-   (object (<ordinary-step> (task self))
-     (prerequisites (map (lambda (dep) (project 'get-step dep))
-                         (self 'dependencies)))
-     (project project))))
-
 (define-object <ordinary-step> (<step>)
   ((build self resend)
    (for-each (lambda (cmd)
@@ -419,7 +436,54 @@
              (self 'prop 'proc))
    (resend #f 'build)))
 
+(define-object <ordinary-task> (<task>)
+  (arguments '(product))
+  (properties
+   `((product (virtual (singleton pathname)) ,(vprop-setter 'set-products! list))
+     (products (virtual (list-of pathname)) ,(vprop-setter 'set-products!))
+     (sources (virtual (list-of pathname)) ,(vprop-setter 'set-sources!))
+     (depends (virtual (list-of symbol)) ,(vprop-setter 'set-dependencies!))
+     (system (list-of string) ())
+     (proc (list-of procedure) ())))
+  (step-prototype <ordinary-step>)
+  (products set-products! '())
+  (sources set-sources! '())
+  (dependencies set-dependencies! '()))
+
 ;;; File-based task
+
+(define-object <file-step> (<ordinary-step>)
+  ((clean self resend)
+   (for-each delete-file (self 'products)))
+  
+  ((stale? self resend)
+   (let* ((missing-products (remp file-exists? (self 'products)))
+          (missing-sources (remp file-exists? (self 'sources)))
+          (source-lmt (and (null? missing-sources)
+                           (last-modification-time (self 'sources))))
+          (product-lmt (and (null? missing-products)
+                            (last-modification-time (self 'products)))))
+     (define (dsp-staleness)
+       (lambda (st)
+         (cond ((not (null? missing-products))
+                ((cat (dsp-obj self) " is stale; missing products: "
+                      (fmt-join dsp-pathname missing-products " ")) st))
+               ((not (null? missing-sources))
+                ((cat (dsp-obj self) " is stale; missing sources: "
+                      (fmt-join dsp-pathname missing-sources)) st))
+               ((and source-lmt product-lmt (time>? source-lmt product-lmt))
+                ((cat (dsp-obj self) " is stale; products older ("
+                      (dsp-time-utc product-lmt) ") than sources ("
+                      (dsp-time-utc source-lmt) ")") st)))))
+
+     (log/task 'debug (dsp-staleness))
+     (or (not (null? missing-products))
+         (not (null? missing-sources))
+         (and source-lmt product-lmt (time>? source-lmt product-lmt)))))
+  
+  ((dsp self resend)
+   (cat "[file-task " (fmt-join dsp-pathname (self 'products) " ")
+        " <= " (fmt-join dsp-pathname (self 'sources) " ") "]")))
 
 (define-object <file-task> (<ordinary-task>)
   ((construct-step self resend project)
@@ -431,12 +495,10 @@
                (else
                 (build-failure "no step found for building {0}"
                                (x->namestring filename)))))))
-   (let* ((source-dir (project 'source-dir))
-          (prod-dir (project 'product-dir))
-          (sources (map (lambda (src)
+   (let* ((sources (map (lambda (src)
                           (pathname-join (if (project 'has-product? src)
                                              '(())
-                                             source-dir)
+                                             (project 'source-dir))
                                          src))
                         (self 'sources)))
           (products (self 'products))
@@ -449,36 +511,8 @@
                                 (project 'get-step source (file-check source)))
                               (self 'sources))))
       (sources sources)
-      (products products)
-      ((stale? self resend)
-
-       (let* ((missing-products (remp file-exists? products))
-              (missing-sources (remp file-exists? sources))
-              (source-lmt (and (null? missing-sources)
-                               (last-modification-time sources)))
-              (product-lmt (and (null? missing-products)
-                                (last-modification-time products))))
-         (define (dsp-staleness)
-           (lambda (st)
-             (cond ((not (null? missing-products))
-                    ((cat (dsp-obj self) " is stale; missing products: "
-                          (fmt-join dsp-pathname missing-products " ")) st))
-                   ((not (null? missing-sources))
-                    ((cat (dsp-obj self) " is stale; missing sources: "
-                          (fmt-join dsp-pathname missing-sources)) st))
-                   ((and source-lmt product-lmt (time>? source-lmt product-lmt))
-                    ((cat (dsp-obj self) " is stale; products older ("
-                          (dsp-time-utc product-lmt) ") than sources ("
-                          (dsp-time-utc source-lmt) ")") st)))))
-
-         (log/task 'debug (dsp-staleness))
-         (or (not (null? missing-products))
-             (not (null? missing-sources))
-             (and source-lmt product-lmt (time>? source-lmt product-lmt))))))))
-
-  ((dsp self resend)
-   (cat "[file-task " (fmt-join dsp-pathname (self 'products) " ")
-        " <= " (fmt-join dsp-pathname (self 'sources) " ") "]")))
+      (products products))
+     step)))
 
 ;;; Task registry
 
@@ -500,3 +534,7 @@
 (define log/task (make-fmt-log '(conjure task)))
 
 )
+
+;; Local Variables:
+;; scheme-indent-styles: ((object 1))
+;; End:

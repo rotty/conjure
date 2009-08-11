@@ -73,6 +73,43 @@
                                (map production-product productions)))
     (task 'set-sources! (map production-template productions))))
 
+(define-object <configure-step> (<file-step>)
+  ((build self resend)
+   (let* ((cache-file (self 'prop 'cache-file))
+          (escape (self 'prop 'escape))
+          (new-cache (rebuild-cache
+                      (read-cache cache-file
+                                  (map (lambda (fetcher)
+                                         (fetcher (self 'project)))
+                                       (self 'prop 'fetchers)))
+                      (self 'sources)
+                      escape)))
+     (process-productions (self 'productions) escape new-cache)
+     (call-with-output-file/atomic cache-file
+       (lambda (port)
+         (write-cache port new-cache)))))
+  ((clean self resend)
+   (delete-file (self 'prop 'cache-file))
+   (for-each (lambda (p)
+               (delete-file (production-product p)))
+             (self 'productions)))
+  ((stale? self resend)
+   (let ((ext (self 'prop 'ext)))
+     (let* ((cache-file (self 'prop 'cache-file))
+            (cache-fmt (file-mtime cache-file)))
+       (or
+         (not cache-fmt)
+         (or-map
+          (lambda (p)
+            (let ((prod (production-product p))
+                  (src (production-template p)))
+              (or (not (file-exists? prod))
+                  (not (file-exists? src))
+                  (let ((src-fmt (file-modification-time src)))
+                    (time<? cache-fmt src-fmt)
+                    (time<? (file-modification-time prod) src-fmt)))))
+          (self 'productions)))))))
+  
 (define-object <configure-task> (<file-task>)
   (properties (append
                `((cache-file (singleton pathname) (",config.cache"))
@@ -83,44 +120,14 @@
                (filter-props '(depends)
                              (<file-task> 'properties))))
 
+  (step-prototype <configure-step>)
   ((construct-step self resend project)
    (let ((step (resend #f 'construct-step project)))
-     (modify-object!
-      step
-      (productions (updated-productions (self 'prop 'productions)
-                                        (step 'sources)))
-      ((build self resend)
-       (let* ((cache-file (self 'prop 'cache-file))
-              (escape (self 'prop 'escape))
-              (new-cache (rebuild-cache
-                          (read-cache cache-file
-                                      (map (lambda (fetcher)
-                                             (fetcher project))
-                                           (self 'prop 'fetchers)))
-                          (self 'sources)
-                          escape)))
-         (process-productions (self 'productions) escape new-cache)
-         (call-with-output-file/atomic cache-file
-           (lambda (port)
-             (write-cache port new-cache)))))
-      ((stale? self resend)
-       (let ((ext (self 'prop 'ext)))
-         (let* ((cache-file (self 'prop 'cache-file))
-                (cache-fmt (file-mtime cache-file)))
-           (or
-            (not cache-fmt)
-            (or-map
-             (lambda (p)
-               (let ((prod (production-product p))
-                     (src (production-template p)))
-                 (or (not (file-exists? prod))
-                     (not (file-exists? src))
-                     (let ((src-fmt (file-modification-time src)))
-                       (time<? cache-fmt src-fmt)
-                       (time<? (file-modification-time prod) src-fmt)))))
-             (self 'productions)))))))
+     (step 'add-value-slot!
+           'productions 
+           (updated-productions (self 'prop 'productions)
+                                (step 'sources)))
      step)))
-
 
 (define (calc-productions lst ext)
   (map (lambda (elt)
