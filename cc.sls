@@ -29,10 +29,12 @@
   (import (rnrs base)
           (rnrs control)
           (rnrs records syntactic)
+          (rnrs hashtables)
           (rnrs io ports)
           (except (srfi :1 lists) for-each map)
           (srfi :8 receive)
           (only (srfi :13 strings) string-map)
+          (spells define-values)
           (spells alist)
           (spells match)
           (spells pathname)
@@ -115,33 +117,63 @@
                            ,@(c-src-stmts c-src)
                            0))))
 
-(define (cc-probe-sizeof missing c-src)
-  (fold (lambda (expr c-src)
-          (match expr
-            (('c-sizeof type . headers)
-             (extend-c-src c-src
-                           (map (lambda (hdr)
-                                  `(%include ,(dsp hdr)))
-                                headers)
-                           (list (cc-out-sizeof type expr))))
-            (_
-             c-src)))
-        c-src
-        missing))
+(define (headers->includes headers)
+  (map (lambda (hdr)
+         `(%include ,hdr))
+       headers))
 
-(define (cc-out-sizeof type expr)
-  `(printf ,(string-append "(" (fmt #f (wrt expr)) " . \"%lu\")\n")
-           (%cast (unsigned long) (sizeof ,(c-type type)))))
+(define (cc-out-ulong key expr)
+  `(printf ,(string-append "(" (fmt #f (wrt key)) " . \"%lu\")\n")
+           (%cast (unsigned long) ,expr)))
 
-(define cc-probes
-  `((c-sizeof ,cc-probe-sizeof)))
+(define cc-gensym
+  (let ((counter 0))
+    (lambda (prefix)
+      (set! counter (+ counter 1))
+      (string->symbol
+       (string-append (symbol->string prefix)
+                      (number->string counter))))))
+
+(define cc-probes (make-eq-hashtable))
+(define cc-probe-categories (make-eq-hashtable))
+
+(define (lookup-cc-probes name)
+  (cond ((hashtable-ref cc-probes name #f)
+         => (lambda (category)
+              (hashtable-ref cc-probe-categories category '())))
+        (else
+         '())))
+
+(define-syntax define-cc-probe
+  (syntax-rules (category)
+    ((_ (<name> . <pattern>) (category <category>)
+        <global-expr> <out-proc> ...)
+     (define-values ()
+       (let ()
+         (define (probe missing c-src)
+           (fold (lambda (expr c-src)
+                   (match expr
+                     (('<name> . <pattern>)
+                      (extend-c-src c-src
+                                    <global-expr>
+                                    (list (<out-proc> expr) ...)))
+                     (_
+                      c-src)))
+                 c-src
+                 missing))
+         (hashtable-set! cc-probes '<name> '<category>)
+         (hashtable-update! cc-probe-categories
+                            '<category>
+                            (lambda (probes)
+                              (cons probe probes))
+                            '()))))))
 
 (define (cc-fetcher cc-name)
   (lambda (project)
     (let ((cc ((project 'get-step cc-name) 'build)))
       (lambda (missing datum)
         (cond ((and (pair? datum)
-                    (assq-ref cc-probes (car datum)))
+                    (lookup-cc-probes (car datum)))
                => (lambda (probes)
                     (let ((c-src
                            (fold-right (lambda (probe c-src)
@@ -188,9 +220,29 @@
     (object (<gcc>)
       (program-path gcc-path))))
 
+(define log/cc (make-fmt-log '(conjure cc)))
+
 
 
-(define log/cc (make-fmt-log '(conjure cc)))
+;; The actual probes
+(define-cc-probe (c-sizeof type . headers)
+  (category base)
+  (headers->includes headers)
+  (lambda (key)
+    (cc-out-ulong key `(sizeof ,(c-type type)))))
+
+(define-cc-probe (c-alignof type . headers)
+  (category base)
+  (headers->includes (cons "stddef.h" headers))
+  (lambda (key)
+    `(%block ""
+       (typedef (struct ((char x)
+                         (,type y)))
+                cc__alignof_)
+       ,(cc-out-ulong key `(offsetof cc__alignof_ y)))))
 
 )
 
+;; Local Variables:
+;; scheme-indent-styles: ((match 1) (%block 1))
+;; End:
