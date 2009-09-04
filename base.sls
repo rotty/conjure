@@ -233,12 +233,12 @@
 ;;; Project
 
 (define-object <project-step> (<step>)
-  (stale? #t)
-  
   ((clean self resend)
    ((self 'task) 'clean))
   
   ((build self resend)
+   (resend #f 'build)
+   (log/project 'info (cat "building " (self 'name)))
    ((self 'task) 'build-rec)))
 
 (define-object <project> (<task>)
