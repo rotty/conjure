@@ -26,7 +26,8 @@
           <ordinary-task> <ordinary-step>
           <file-step> <file-task>
           register-task-prototype
-          find-task-prototype)
+          find-task-prototype
+          logger:conjure)
   (import (rnrs base)
           (rnrs control)
           (only (rnrs lists) assq remp)
@@ -43,8 +44,7 @@
           (spells pathname)
           (spells filesys)
           (spells process)
-          (spells tracing)
-          (only (spells assert) cout)
+          (spells logging)
           (spells tracing)
           (conjure utils)
           (conjure cmd-line)
@@ -528,10 +528,14 @@
              (else
               (set! prototypes (cons (cons name prototype) prototypes))))))))
 
-;; Log procedures
+;; Loggers and log procedures
 
-(define log/project (make-fmt-log '(conjure project)))
-(define log/task (make-fmt-log '(conjure task)))
+(define logger:conjure (make-logger root-logger 'conjure))
+(define logger:conjure.project (make-logger logger:conjure 'project))
+(define logger:conjure.task (make-logger logger:conjure 'task))
+
+(define log/project (make-fmt-log logger:conjure.project))
+(define log/task (make-fmt-log logger:conjure.task))
 
 )
 

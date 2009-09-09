@@ -45,6 +45,7 @@
           (spells match)
           (spells tracing)
           (spells ports)
+          (spells logging)
           (prometheus)
           (spells fmt)
           (conjure utils)
@@ -286,6 +287,7 @@
                       port
                       escape)))))
 
-(define log/conf (make-fmt-log '(conjure configure)))
+(define logger:conjure.configure (make-logger logger:conjure 'configure))
+(define log/conf (make-fmt-log logger:conjure.configure))
 
 )

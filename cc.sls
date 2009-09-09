@@ -42,7 +42,7 @@
           (spells sysutils)
           (spells process)
           (spells tracing)
-          (only (spells assert) cout)
+          (spells logging)
           (prometheus)
           (spells fmt)
           (spells fmt c)
@@ -220,7 +220,8 @@
     (object (<gcc>)
       (program-path gcc-path))))
 
-(define log/cc (make-fmt-log '(conjure cc)))
+(define logger:conjure.cc (make-logger logger:conjure 'cc))
+(define log/cc (make-fmt-log logger:conjure.cc))
 
 
 

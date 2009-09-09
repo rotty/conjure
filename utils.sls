@@ -245,8 +245,8 @@
             (memq (car prop) names))
           props))
 
-(define (make-fmt-log logger-name)
-  (let ((log (make-log logger-name)))
+(define (make-fmt-log logger)
+  (let ((log (make-log logger)))
     (lambda (level . formats)
       (log level (lambda (port)
                    (apply fmt port formats))))))
