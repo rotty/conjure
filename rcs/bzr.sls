@@ -84,7 +84,9 @@
            (run-bzr/log 'update)
            (run-bzr/log 'pull repo)))
       ((rcs/inventory self) (inventory))
-      ((rcs/diff self)      (diff))))
+      ((rcs/diff self)      (diff))
+      ((rcs/get self repo dir)
+       (run-bzr/log 'get repo dir))))
 
   )
 
