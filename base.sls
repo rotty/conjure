@@ -261,7 +261,7 @@
   ;; Constructor
   ((new self resend name args props)
    (let ((proj (resend #f 'new name args props)))
-     (proj 'set-source-dir! (calc-source-dir (proj 'source-dir) (proj 'product-dir)))
+     (proj 'set-source-dir! (enough-pathname (proj 'source-dir) (proj 'product-dir)))
      (proj 'set-named-tasks! (make-eq-hashtable))
      (proj 'set-task-steps! (make-eq-hashtable))
      (proj 'set-product-tasks! (make-hashtable pathname-hash pathname=?))
@@ -399,30 +399,6 @@
   (map (lambda (step)
          (cons step (step 'prerequisites)))
        (project-steps proj)))
-
-(define (calc-source-dir src-dir prod-dir)
-  (define (lose)
-    (error 'calc-source-dir
-           "cannotate calculate source directory relative to product directory"
-           src-dir prod-dir))
-  (define (n-backs pathname)
-    (let ((o (pathname-origin pathname)))
-      (if (list? o)
-          (fold (lambda (elt n)
-                  (case elt
-                    ((back) (+ n 1))
-                    (else
-                     (lose))))
-                0 o)
-          ;; assume absolute pathname
-          0)))
-  (pathname-join
-   (make-pathname (make-list (- (length (pathname-directory prod-dir))
-                                (n-backs prod-dir))
-                             'back)
-                  '()
-                  #f)
-                 src-dir))
 
 ;;; Ordinary task
 
