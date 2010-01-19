@@ -1,6 +1,6 @@
 ;;; git.sls --- Git interface
 
-;; Copyright (C) 2009 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -44,7 +44,6 @@
           (rename (only (conjure utils) object)
                   (object obj))
           (conjure rcs utils)
-          (conjure rcs files)
           (conjure rcs prompt)
           (conjure rcs operations))
 

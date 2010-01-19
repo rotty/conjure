@@ -25,7 +25,6 @@
           (rename (only (conjure utils) object)
                   (object obj))
           (conjure rcs utils)
-          (conjure rcs files)
           (conjure rcs prompt)
           (conjure rcs operations))
 

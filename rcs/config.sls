@@ -1,6 +1,6 @@
 ;;; config.sls --- Handling of "configs", as pioneered by GNU Arch
 
-;; Copyright (C) 2008, 2009 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2008, 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -44,7 +44,6 @@
           (spells include)
           (spells tracing)
           (conjure rcs utils)
-          (conjure rcs files)
           (conjure rcs prompt)
           (conjure rcs operations)
           (conjure rcs default))
@@ -90,31 +89,30 @@
     (config-for-each
      (lambda (rcs dir repo . opts)
        (let-optionals* opts ((branch #f))
+         (define (pull)
+           (with-working-directory dir
+             (lambda () (rcs/pull rcs repo branch))))
+         (define (fresh)
+           ;; Move directory out of the way
+           (temp-pathname-iterate
+            (lambda (tmp next) (rename-file dir tmp) tmp)
+            dir)
+           (rcs/get rcs repo dir))
+         (define (push)
+           (with-working-directory dir
+             (lambda () (rcs/push rcs repo branch))))
          (if (file-exists? dir)
-             (let ((pull
-                    (lambda ()
-                      (with-working-directory dir
-                        (lambda () (rcs/pull rcs repo branch)))))
-                   (fresh
-                    (lambda ()
-                      (let ((tmp (temp-name dir)))
-                        (rename-file dir tmp)
-                        (rcs/get rcs repo dir))))
-                   (push
-                    (lambda ()
-                      (with-working-directory dir
-                        (lambda () (rcs/push rcs repo branch))))))
-               (case mode
-                 ((ask)
-                  (choose (string-append (x->namestring dir) " exists: ")
-                          #f
-                          `((,(string-append "Update pulling from "
-                                             repo)
-                             ,pull)
-                            ("Get a fresh copy" ,fresh))))
-                 ((pull) (pull))
-                 ((fresh) (fresh))
-                 ((push)  (push))))
+             (case mode
+               ((ask)
+                (choose (string-append (x->namestring dir) " exists: ")
+                        #f
+                        `((,(string-append "Update pulling from "
+                                           repo)
+                           ,pull)
+                          ("Get a fresh copy" ,fresh))))
+               ((pull) (pull))
+               ((fresh) (fresh))
+               ((push)  (push)))
              (rcs/get rcs repo dir))))
      cfg)))
 
