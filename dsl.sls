@@ -28,7 +28,7 @@
           define-project
           with-project
           current-project
-          procedure-from-environment/lazy)
+          import-procedures/lazy)
   (import (rnrs base)
           (rnrs control)
           (rnrs syntax-case)
@@ -37,6 +37,7 @@
           (srfi :39 parameters)
           ;; (for (spells tracing) run expand)
           ;; (for (only (spells assert) cout) run expand)
+          (spells define-values)
           (for (conjure utils) run expand)
           (conjure base))
 
@@ -85,13 +86,23 @@
     ((current-project) 'add-task (prototype 'new name args props))))
 
 
-(define-syntax procedure-from-environment/lazy
-  (syntax-rules ()
-    ((_ expr import ...)
-     (let ((proc #f))
-       (lambda args
-         (unless proc
-           (set! proc (eval 'expr (environment 'import ...))))
-         (apply proc args))))))
+(define-syntax import-procedures/lazy
+  (syntax-rules (only)
+    ((_ (only import proc-id ...) ...)
+     (begin
+       (define-values (proc-id ...)
+         (let ((env #f)
+               (proc-id #f)
+               ...)
+           (define (force-environment)
+             (unless env
+               (set! env (environment 'import)))
+             env)
+           (values (lambda args
+                     (unless proc-id
+                       (set! proc-id (eval 'proc-id (force-environment))))
+                     (apply proc-id args))
+                   ...)))
+       ...))))
 
 )
