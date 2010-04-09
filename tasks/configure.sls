@@ -1,6 +1,6 @@
 ;;; config.sls --- Conjure config subsystem
 
-;; Copyright (C) 2009 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -212,7 +212,7 @@
   (let ((kvs (cache-kvs cache))
         (results (cache-fetch cache datum)))
     (unless results
-      (error 'update-cache! "unable to find fetch datum" datum))
+      (error 'update-cache! "unable to fetch datum" datum))
     (for-each (lambda (kv)
                 (cond ((assoc (car kv) kvs)
                        => (lambda (entry)
@@ -278,14 +278,13 @@
   (log/conf 'info "scanning " (dsp-pathname pathname))
   (call-with-input-file (x->namestring pathname)
     (lambda (port)
-      (let ((last-pos 0))
-        (fold-escapes (lambda (datum finfos)
-                        (cons datum finfos))
-                      (lambda (buffer start end finfos)
-                        finfos)
-                      '()
-                      port
-                      escape)))))
+      (fold-escapes (lambda (datum finfos)
+                      (cons datum finfos))
+                    (lambda (buffer start end finfos)
+                      finfos)
+                    '()
+                    port
+                    escape))))
 
 (define logger:conjure.configure (make-logger logger:conjure 'configure))
 (define log/conf (make-fmt-log logger:conjure.configure))
