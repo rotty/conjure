@@ -158,7 +158,8 @@
            (log/conf 'info (cat "generating " (dsp-pathname prod)))
            (call-with-input-file (x->namestring src)
              (lambda (in-port)
-               (call-with-output-file/atomic (x->pathname prod)
+               (create-directory* (pathname-with-file prod #f))
+               (call-with-output-file/atomic (->pathname prod)
                  (lambda (out-port)
                    (subst-port in-port
                                out-port
