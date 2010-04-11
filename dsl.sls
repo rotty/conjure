@@ -1,6 +1,6 @@
 ;;; dsl.sls --- Conjure DSL
 
-;; Copyright (C) 2009 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -29,10 +29,7 @@
           with-project
           current-project
           import-procedures/lazy)
-  (import (rnrs base)
-          (rnrs control)
-          (rnrs syntax-case)
-          (rnrs io simple)
+  (import (rnrs)
           (rnrs eval)
           (srfi :39 parameters)
           ;; (for (spells tracing) run expand)

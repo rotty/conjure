@@ -1,6 +1,6 @@
 ;;; utils.sls --- Utility functions for conjure
 
-;; Copyright (C) 2009 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -49,14 +49,14 @@
           make-fmt-log
           dsp-obj
           dsp-pathname
-          dsp-time-utc)
-  (import (rnrs base)
-          (rnrs control)
-          (rnrs syntax-case)
-          (rnrs hashtables)
-          (rnrs io ports)
+          dsp-time-utc
+
+          irx-match-lambda
+          irx-match-let)
+  (import (for (except (rnrs) delete-file file-exists?)
+               run (meta -1))
           (rnrs mutable-strings)
-          (except (srfi :1) for-each map)
+          (only (srfi :1) fold every last drop-right)
           (srfi :8 receive)
           (only (srfi :13 strings)
                 string-suffix? string-copy!)
@@ -68,8 +68,9 @@
           (spells tracing)
           (spells filesys)
           (spells logging)
-          (prometheus)
-          (spells fmt))
+          (ported prometheus)
+          (spells fmt)
+          (spells irregex))
 
 (define (list-intersperse src-l elem)
   (if (null? src-l) src-l
@@ -268,5 +269,24 @@
                    (else
                     "~b ~e ~Y"))))
     (date->string date fmt)))
+
+(define-syntax irx-match-let
+  (syntax-rules ()
+    ((_ () body ...)
+     (let ()
+       body ...))
+    ((_ (((match-name ...) match-expr) other-clauses ...) body ...)
+     (let ((match match-expr))
+       (let ((match-name (irregex-match-substring match 'match-name))
+             ...)
+         (irx-match-let (other-clauses ...)
+           body ...))))))
+
+(define-syntax irx-match-lambda
+  (syntax-rules ()
+    ((_ (match-name ...) body ...)
+     (lambda (match)
+       (irx-match-let (((match-name ...) match))
+         body ...)))))
 
 )
