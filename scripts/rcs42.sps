@@ -26,11 +26,6 @@
   (for-each display args)
   (newline))
 
-(define (print-lines entry)
-  (if (not (empty-pathname? (car entry)))
-      (println "*** " (x->namestring (car entry))))
-  (for-each println (cdr entry)))
-
 (define (make-lister proc output . extra-args)
   (lambda (args)
     (for-each
@@ -39,7 +34,7 @@
      (receive (cfg args) (parse-args args)
        (apply proc cfg (append extra-args args))))))
 
-(define diff (make-lister config-diff print-lines))
+(define diff (make-lister config-diff println))
 (define inventory (make-lister config-inventory
                                (lambda (pathname)
                                  (println (x->namestring pathname)))))

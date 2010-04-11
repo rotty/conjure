@@ -1,6 +1,6 @@
 ;;; bzr.sls --- bzr backend for rcs42
 
-;; Copyright (C) 2008, 2009 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2008, 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -63,7 +63,7 @@
                     (stdout 'lines)
                     (success-codes '(0 1 2)))))
       (lambda ()
-        (runner 'run '("diff")))))
+        (runner 'run '("diff" "-p1")))))
 
   (define info
     (let ((runner (obj (<bzr-runner/stdout>)

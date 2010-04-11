@@ -32,7 +32,7 @@
           (rnrs lists)
           (rnrs io simple)
           (srfi :8 receive)
-          (only (srfi :1 lists) fold unfold append-map)
+          (only (srfi :1) drop fold unfold append-map append-reverse)
           (only (srfi :13 strings) substring/shared string-index-right)
           (spells opt-args)
           (spells misc)
@@ -41,8 +41,11 @@
           (spells filesys)
           (spells process)
           (spells sysutils)
+          (spells irregex)
           (spells include)
           (spells tracing)
+          (spells foof-loop)
+          (conjure utils)
           (conjure rcs utils)
           (conjure rcs prompt)
           (conjure rcs operations)
@@ -136,10 +139,39 @@
     (lambda (rcs dir repo opts rest)
       (with-working-directory dir
         (lambda ()
-          (cons (cons dir (rcs/diff rcs)) rest))))
+          (append-reverse (augment-diff dir 1 (rcs/diff rcs))
+                          rest))))
     '()
     cfg)))
 
+(define diff-file-header-irx
+  (irregex '(: bos (=> head (or "---" "+++"))
+               " " (=> filename (+ (~ space)))
+               (=> rest (* any)))))
+
+(define (augment-diff directory strip lines)
+  (define (augment-line line)
+    (cond ((irregex-search diff-file-header-irx line)
+           => (irx-match-lambda (head filename rest)
+                (augment-header head filename rest)))
+          (else
+           line)))
+  (define (augment-header head filename rest)
+    (let ((pathname (->pathname filename)))
+      (string-append
+       head
+       " "
+       (if (pathname-origin pathname)
+           filename
+           (let ((stripped
+                  (make-pathname #f
+                                 (drop (pathname-directory pathname) strip)
+                                 (pathname-file pathname))))
+             (->namestring (merge-pathnames stripped directory))))
+       rest)))
+  (loop ((for line (in-list lines))
+         (for result (listing (augment-line line))))
+    => result))
 
 (define (sys-def-extractor key)
   (lambda (form)
@@ -208,3 +240,7 @@
   (unfold eof-object? values (lambda (seed) (read port)) (read port)))
 
 )
+
+;; Local Variables:
+;; scheme-indent-styles: ((irx-match-lambda 1))
+;; End:
