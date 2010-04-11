@@ -25,8 +25,7 @@
 (library (conjure rcs config)
   (export build-config
           config-inventory
-          config-diff
-          config-dist)
+          config-diff)
   (import (rnrs base)
           (rnrs control)
           (rnrs lists)
@@ -172,72 +171,6 @@
   (loop ((for line (in-list lines))
          (for result (listing (augment-line line))))
     => result))
-
-(define (sys-def-extractor key)
-  (lambda (form)
-    (match form
-      (('define-system name clauses ___)
-       (append-map (lambda (clause)
-                     (if (eq? (car clause) key)
-                         (cdr clause)
-                         '()))
-                   clauses))
-      (_
-       '()))))
-
-(define (config-extra-dist cfg)
-  (config-fold
-   (lambda (rcs dir repo opts extra-dist)
-     (let ((sys-def (pathname-join dir "sys-def.scm")))
-       (append
-        (map (lambda (filename)
-               (pathname-join dir filename))
-             (if (file-exists? sys-def)
-                 (append-map (sys-def-extractor 'extra-dist)
-                             (call-with-input-file (x->namestring sys-def)
-                               port->sexps))
-                 '()))
-        extra-dist)))
-   '()
-   cfg))
-
-(define tar-command
-  (or (find-exec-path "tar")
-      (error 'tar-command "`tar' not found in PATH")))
-
-(define rm-command
-  (or (find-exec-path "rm")
-      (error 'tar-command "`rm' not found in PATH")))
-
-(define (config-dist cfg . args)
-  (let ((dot-pos (string-index-right cfg #\.))
-        (slash-pos (or (string-index-right cfg #\/) -1)))
-    (let-optionals* args
-        ((name (substring/shared cfg
-                                 (+ slash-pos 1)
-                                 (or (and dot-pos (> dot-pos slash-pos) dot-pos)
-                                     (string-length cfg)))))
-      (let ((dirname (pathname-as-directory name)))
-        (create-directory dirname)
-        (for-each (lambda (filename)
-                    ; the file might be in RCS, but removed in checkout
-                    (when (file-exists? filename)
-                      (let* ((dst-name (pathname-join dirname filename))
-                             (dst-dir (pathname-with-file dst-name #f)))
-                        (cond ((and (not (file-symbolic-link? filename))
-                                    (file-directory? filename))
-                               (create-directory* dst-name))
-                              (else
-                               (unless (file-exists? dst-dir)
-                                 (create-directory* dst-dir))
-                               (create-hard-link filename dst-name))))))
-                  (append (config-inventory cfg)
-                          (config-extra-dist cfg)))
-        (run-process #f tar-command "-czf" (string-append name ".tar.gz") name)
-        (run-process #f rm-command "-rf" name)))))
-
-(define (port->sexps port)
-  (unfold eof-object? values (lambda (seed) (read port)) (read port)))
 
 )
 

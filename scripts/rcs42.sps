@@ -38,7 +38,6 @@
 (define inventory (make-lister config-inventory
                                (lambda (pathname)
                                  (println (x->namestring pathname)))))
-(define dist (make-runner config-dist))
 (define push (make-runner build-config 'push))
 (define pull (make-runner build-config 'pull))
 
@@ -61,7 +60,6 @@
     ((case (string->symbol (cadr argv))
        ((diff)      diff)
        ((inventory) inventory)
-       ((dist)      dist)
        ((push)      push)
        ((pull)      pull)
        (else
