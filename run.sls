@@ -1,6 +1,6 @@
 ;;; run.sls --- Convience procedures to run programs
 
-;; Copyright (C) 2009 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -35,7 +35,7 @@
           (only (spells filesys) working-directory)
           (spells string-utils)
           (spells misc)
-          (prometheus)
+          (wak prometheus)
           (conjure utils))
 
 (define-condition-type &runner-error &error

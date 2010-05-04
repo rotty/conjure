@@ -1,6 +1,6 @@
 ;;; tests.scm --- List of tests for conjure
 
-;; Copyright (C) 2009 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -31,7 +31,7 @@
   ("base.scm"
    (spells pathname)
    (spells tracing)
-   (prometheus)
+   (wak prometheus)
    (conjure utils)
    (conjure base))
   ("dsl.scm"

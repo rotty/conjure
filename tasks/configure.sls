@@ -46,8 +46,8 @@
           (spells tracing)
           (spells ports)
           (spells logging)
-          (prometheus)
-          (spells fmt)
+          (wak prometheus)
+          (wak fmt)
           (conjure utils)
           (conjure base))
 

@@ -68,9 +68,9 @@
           (spells tracing)
           (spells filesys)
           (spells logging)
-          (ported prometheus)
-          (spells fmt)
-          (spells irregex))
+          (wak prometheus)
+          (wak fmt)
+          (wak irregex))
 
 (define (list-intersperse src-l elem)
   (if (null? src-l) src-l

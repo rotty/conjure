@@ -2,7 +2,10 @@
   (libraries
    (sls -> "conjure"))
   (depends
-   (prometheus)
+   (wak-fmt)
+   (wak-irregex)
+   (wak-foof-loop)
+   (wak-prometheus)
    (spells)
    (srfi)))
 

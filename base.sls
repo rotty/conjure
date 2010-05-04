@@ -1,6 +1,6 @@
 ;;; base.sls --- Conjure base library
 
-;; Copyright (C) 2009 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -48,8 +48,8 @@
           (spells tracing)
           (conjure utils)
           (conjure cmd-line)
-          (prometheus)
-          (spells fmt))
+          (wak prometheus)
+          (wak fmt))
 
 ;;; Step
 

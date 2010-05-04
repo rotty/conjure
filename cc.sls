@@ -1,6 +1,6 @@
 ;;; cc.sls --- Conjure C compiler support
 
-;; Copyright (C) 2009 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -43,9 +43,9 @@
           (spells process)
           (spells tracing)
           (spells logging)
-          (prometheus)
-          (spells fmt)
-          (spells fmt c)
+          (wak fmt)
+          (wak fmt c)
+          (wak prometheus)
           (conjure base)
           (conjure run)
           (conjure utils))
