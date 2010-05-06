@@ -50,26 +50,28 @@
           (conjure rcs operations)
           (conjure rcs default))
 
-(define (normalize-config config)
-  (define (lose form)
-    (error 'normalize-config "config file must be of the form ((dir repo) ...)"
-           form))
-  (unless (list? config) (lose "malformed config" config))
-  (map (lambda (prj)
-         (let ((l (length prj)))
-           (cond 
-              ((= l 2) (list (default-rcs) (car prj) (cadr prj) '()))
-              ((> l 2)
-               (list (get-rcs (cadr prj)) (car prj) (caddr prj) (cdddr prj)))
-              (else
-               (lose prj)))))
-       config))
+(define (read-config filename)
+  (define (lose message . irritants)
+    (apply error 'normalize-config message irritants))
+  (define (expand-entry dirname entry)
+    (match entry
+      (('include (? string? include-filename))
+       (read-config (merge-pathnames include-filename dirname)))
+      (((? string? directory) (? symbol? rcs-name) (? string? repo) options ___)
+       (list (list (get-rcs rcs-name) directory repo options)))
+      (_
+       (lose "malformed config entry" entry))))
+  (unless (file-readable? filename)
+    (lose "file not readable" filename))
+  (let ((dirname (pathname-with-file (->pathname filename) #f))
+        (config (call-with-input-file (->namestring filename) read)))
+    (unless (list? config)
+      (lose "malformed config" config))
+    (loop ((for entry (in-list config))
+           (for result (appending (expand-entry dirname entry))))
+      => result)))
 
-(define (config-fold kons nil cfg)
-  (define (lose msg . irritants)
-    (apply error 'config-fold msg irritants))
-  (unless (file-readable? cfg)
-    (lose "file not readable" cfg))
+(define (config-fold kons nil filename)
   (fold (lambda (prj rest)
           (kons (car prj)
                 (pathname-as-directory (cadr prj))
@@ -77,7 +79,7 @@
                 (cadddr prj)
                 rest))
         nil
-        (normalize-config (call-with-input-file cfg read))))
+        (read-config filename)))
 
 (define (config-for-each proc cfg)
   (config-fold (lambda (rcs dir repo opts rest)
@@ -175,5 +177,5 @@
 )
 
 ;; Local Variables:
-;; scheme-indent-styles: ((irx-match-lambda 1))
+;; scheme-indent-styles: ((irx-match-lambda 1) foof-loop as-match)
 ;; End:
