@@ -1,6 +1,6 @@
 ;;; utils.sls --- Utilities for rcs42
 
-;; Copyright (C) 2008, 2009 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2008-2010 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -28,7 +28,7 @@
           make-stdout-runner)
   (import (rnrs)
           (only (srfi :1 lists) unfold)
-          (spells lazy)
+          (srfi :45 lazy)
           (spells string-utils)
           (spells sysutils)
           (spells pathname)
