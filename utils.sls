@@ -51,6 +51,8 @@
           dsp-pathname
           dsp-time-utc
 
+          modify-object!
+          
           irx-match-lambda
           irx-match-let)
   (import (for (except (rnrs) delete-file file-exists?)
@@ -269,6 +271,27 @@
                    (else
                     "~b ~e ~Y"))))
     (date->string date fmt)))
+
+(define-syntax modify-object!
+  (syntax-rules ()
+    ((_ o)
+     o)
+    ((_ o ((method-name . method-args) body ...)
+        slots ...)
+     (begin
+       (o 'add-method-slot! 'method-name (lambda method-args
+                                           body ...))
+       (modify-object! o slots ...)))
+    ((_ o (slot-getter slot-setter slot-value)
+        slots ...)
+     (begin
+       (o 'add-value-slot! 'slot-getter 'slot-setter slot-value)
+       (modify-object! o slots ...)))
+    ((_ o (slot-getter slot-value)
+        slots ...)
+     (begin
+       (o 'add-value-slot! 'slot-getter slot-value)
+       (modify-object! o slots ...)))))
 
 (define-syntax irx-match-let
   (syntax-rules ()
