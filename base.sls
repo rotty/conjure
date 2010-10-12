@@ -463,6 +463,18 @@
      (or (not (null? missing-products))
          (not (null? missing-sources))
          (and source-lmt product-lmt (time>? source-lmt product-lmt)))))
+
+  ((resolve-files self resend files)
+   (map (lambda (file)
+          (self 'resolve-file file))
+        files))
+
+  ((resolve-file self resend file)
+   (let ((project (self 'project)))
+     (pathname-join (if (project 'has-product? file)
+                        '(())
+                        (project 'source-dir))
+                    file)))
   
   ((dsp self resend)
    (cat "[file-task " (fmt-join dsp-pathname (self 'products) " ")
@@ -478,14 +490,9 @@
                (else
                 (build-failure "no step found for building {0}"
                                (x->namestring filename)))))))
-   (let* ((sources (map (lambda (src)
-                          (pathname-join (if (project 'has-product? src)
-                                             '(())
-                                             (project 'source-dir))
-                                         src))
-                        (self 'sources)))
-          (products (self 'products))
-          (step (resend #f 'construct-step project)))
+   (let* ((step (resend #f 'construct-step project))
+          (sources (step 'resolve-files (self 'sources)))
+          (products (self 'products)))
      (modify-object!
       step
       (prerequisites (append (step 'prerequisites)
