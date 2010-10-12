@@ -1,6 +1,6 @@
 ;;; base.scm --- Unit tests for (conjure base)
 
-;; Copyright (C) 2009 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -21,9 +21,28 @@
 
 ;;; Code:
 
+(import (except (rnrs) file-exists? delete-file)
+        (spells pathname)
+        (spells tracing) ;debug
+        (spells filesys)
+        (wak trc-testing)
+        (wak prometheus)
+        (conjure utils)
+        (conjure base))
+
+(define test-dir (->pathname '((",base-test.tmp"))))
+
+(define (test-filename pathname)
+  (merge-pathnames pathname test-dir))
+
+(define (assert-clear-stage)
+  (when (file-exists? test-dir)
+    (test-failure "working stage not clear" test-dir)))
+
 (define-test-suite base-tests
   "Base library")
 
+
 (define (deduce-dest t)
   (pathname-add-type (t 'prop 'src) "out"))
 
@@ -43,4 +62,35 @@
     (test-compare pathname=? (x->pathname '(() "b")) (t 'prop 'dest))
     (test-equal "@" (t 'prop 'escape))))
 
+(define-test-suite (base-tests.project base-tests)
+  "Project functionality")
+
+(define-test-case base-tests.project product-dir
+  ((setup (assert-clear-stage))
+   (teardown
+    (delete-file (test-filename "build"))
+    (delete-file test-dir)))
+  (let* ((project (<project> 'new
+                            #f
+                            (list (test-filename "build")
+                                  (test-filename "src"))
+                            '()))
+         (result #f)
+         (step (object (<step>)
+                 ((build self resend)
+                  (resend #f 'build)
+                  (set! result (working-directory)))))
+         (task (object (<task>)
+                 (step-prototype step))))
+    (project 'add-task (task 'new 'working-dir '() '()))
+    (project 'invoke '("working-dir"))
+    (test-compare pathname=? (merge-pathnames (pathname-as-directory
+                                               (test-filename "build"))
+                                              (working-directory))
+      result)))
+
 (run-test-suite base-tests)
+
+;; Local Variables:
+;; scheme-indent-styles: (trc-testing)
+;; End:

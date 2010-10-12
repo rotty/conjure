@@ -289,42 +289,15 @@
      (log/project 'debug (cat (self 'name) ": added " (dsp-obj task)))))
 
   ((build-rec self resend . maybe-force?)
-   (let ((force? (:optional maybe-force? #f))
-         (product-dir (self 'product-dir)))
-     (unless (file-exists? product-dir)
-       (create-directory product-dir))
-     (with-working-directory product-dir
-       (lambda ()
-         (send-all (root-steps self) 'build-rec force?)))))
+   (let ((force? (:optional maybe-force? #f)))
+     (with-project-product-dir self
+       (lambda () (send-all (root-steps self) 'build-rec force?)))))
 
   ((invoke self resend cmd-line)
    (if (null? cmd-line)
        (self 'build-rec)
-       (let loop ((cmd-line cmd-line))
-         (define (do-regular-step+iterate)
-           ((self 'get-step (car cmd-line)) 'build-rec)
-           (loop (cdr cmd-line)))
-         (define (do-option-step+iterate task options)
-           (receive (cmd-line-rest . results)
-                    (process-cmd-line cmd-line options)
-             (let ((step (apply task 'construct-step self results)))
-               (log/project 'debug (cat "constructed " (dsp-obj step)
-                                        " from " (dsp-obj task)
-                                        " using " (dsp results)))
-               (step 'build-rec)
-               (loop cmd-line-rest))))
-         (if (not (null? cmd-line))
-             (cond ((hashtable-ref (self 'named-tasks)
-                                   (string->symbol (car cmd-line))
-                                   #f)
-                    => (lambda (task)
-                         (cond ((task 'options)
-                                => (lambda (options)
-                                     (do-option-step+iterate task options)))
-                               (else
-                                (do-regular-step+iterate)))))
-                   (else
-                    (do-regular-step+iterate)))))))
+       (with-project-product-dir self
+         (lambda () (invoke-project self cmd-line)))))
 
   ((clean self resend)
    (send-all (root-steps self) 'clean)
@@ -371,6 +344,34 @@
 
   )
 
+(define (invoke-project project cmd-line)
+  (let loop ((cmd-line cmd-line))
+    (define (do-regular-step+iterate)
+      ((project 'get-step (string->symbol (car cmd-line))) 'build-rec)
+      (loop (cdr cmd-line)))
+    (define (do-option-step+iterate task options)
+      (receive (cmd-line-rest . results)
+               (process-cmd-line cmd-line options)
+        (let ((step (apply task 'construct-step project results)))
+          (log/project 'debug (cat "constructed " (dsp-obj step)
+                                   " from " (dsp-obj task)
+                                   " using " (dsp results)))
+          (step 'build-rec)
+          (loop cmd-line-rest))))
+    (cond ((null? cmd-line)
+           (unspecific))
+          ((hashtable-ref (project 'named-tasks)
+                          (string->symbol (car cmd-line))
+                          #f)
+           => (lambda (task)
+                (cond ((task 'options)
+                       => (lambda (options)
+                            (do-option-step+iterate task options)))
+                      (else
+                       (do-regular-step+iterate)))))
+          (else
+           (do-regular-step+iterate)))))
+
 (define (root-steps proj)
   (filter-map (lambda (adj)
                 (and (null? (cdr adj)) (car adj)))
@@ -399,6 +400,12 @@
   (map (lambda (step)
          (cons step (step 'prerequisites)))
        (project-steps proj)))
+
+(define (with-project-product-dir project thunk)
+  (let ((product-dir (project 'product-dir)))
+    (unless (file-exists? product-dir)
+      (create-directory* product-dir))
+    (with-working-directory product-dir thunk)))
 
 ;;; Ordinary task
 

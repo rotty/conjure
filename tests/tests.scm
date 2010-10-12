@@ -28,12 +28,7 @@
    (srfi :8 receive)
    (spells pathname)
    (conjure utils))
-  ("base.scm"
-   (spells pathname)
-   (spells tracing)
-   (wak prometheus)
-   (conjure utils)
-   (conjure base))
+  "base.scm"
   ("dsl.scm"
    (only (spells assert) cout)
    (spells testing-utils)
