@@ -50,16 +50,7 @@
           (conjure run)
           (conjure utils))
 
-(define-object <cc> (*the-root-object*)
-  (%cached-program %set-cached-program! #f)
-  ((program-path self)
-   (or (self '%cached-program)
-       (let ((path (find-exec-path (self 'program))))
-         (unless path
-           (build-failure "program not found" (self 'program)))
-         (self '%set-cached-program! path)
-         path)))
-  
+(define-object <cc> (<program>)
   (program "gcc")
   
   (runner (<runner> 'clone))

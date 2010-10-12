@@ -52,6 +52,7 @@
           dsp-time-utc
 
           modify-object!
+          <program>
           
           irx-match-lambda
           irx-match-let)
@@ -70,6 +71,7 @@
           (spells tracing)
           (spells filesys)
           (spells logging)
+          (spells sysutils)
           (wak prometheus)
           (wak fmt)
           (wak irregex))
@@ -292,6 +294,16 @@
      (begin
        (o 'add-value-slot! 'slot-getter slot-value)
        (modify-object! o slots ...)))))
+
+(define-object <program> (*the-root-object*)
+  (%cached-program %set-cached-program! #f)
+  ((program-path self resend)
+   (or (self '%cached-program)
+       (let ((path (find-exec-path (self 'program))))
+         (unless path
+           (build-failure "program not found" (self 'program)))
+         (self '%set-cached-program! path)
+         path))))
 
 (define-syntax irx-match-let
   (syntax-rules ()
