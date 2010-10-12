@@ -36,6 +36,7 @@
    (conjure base))
   ("dsl.scm"
    (only (spells assert) cout)
+   (spells testing-utils)
    (conjure base)
    (conjure task-lib)
    (conjure dsl))))
