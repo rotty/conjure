@@ -36,7 +36,7 @@
           (except (srfi :1 lists) for-each map)
           (srfi :8 receive)
           (srfi :19 time)
-          (only (spells misc) topological-sort unspecific)
+          (only (spells misc) and=> topological-sort unspecific)
           (spells define-values)
           (spells alist)
           (spells opt-args)
@@ -48,6 +48,7 @@
           (spells tracing)
           (conjure utils)
           (conjure cmd-line)
+          (wak foof-loop)
           (wak prometheus)
           (wak fmt))
 
@@ -80,6 +81,11 @@
   ((name self resend)
    ((self 'task) 'name))
   
+  ((invoke self resend action targets)
+   (unless (null? targets)
+     (raise-task-error 'task "step does not have sub-targets"))
+   (self action))
+  
   ((dsp self resend)
    (cat "[step " ((self 'task) 'name)
         " [" (fmt-join dsp-obj (self 'prerequisites) "") "]]")))
@@ -111,7 +117,6 @@
 
 (define-object <task> (*the-root-object*)
   (name %set-name! #f)
-  (options #f)
   (step-prototype <step>)
   
   ((new self resend name args props)
@@ -218,7 +223,7 @@
      (prerequisites (map (lambda (dep) (project 'get-step dep))
                          (self 'dependencies)))
      (project project)))
-  
+
   ((disclose self resend)
    `(task ,(self 'name) (props ,@(self '%props))))
 
@@ -239,14 +244,18 @@
   ((build self resend)
    (resend #f 'build)
    (log/project 'info (cat "building " (self 'name)))
-   ((self 'task) 'build-rec)))
+   ((self 'task) 'build-rec))
+
+  ((invoke self resend action targets)
+   ((self 'task) 'invoke action targets)))
 
 (define-object <project> (<task>)
   (arguments '(product-dir source-dir))
   (properties `((source-dir (virtual (singleton pathname))
                             ,(vprop-setter/dir 'set-source-dir!))
                 (product-dir (virtual (singleton pathname))
-                             ,(vprop-setter/dir 'set-product-dir!))))
+                             ,(vprop-setter/dir 'set-product-dir!))
+                (default-task (singleton any) (#f))))
 
   ;; Value slots
   (product-dir set-product-dir! (make-pathname #f '() #f))
@@ -256,6 +265,7 @@
   (product-tasks set-product-tasks! #f)
   (tasks set-tasks! '())
   (rules set-rules! '())
+  (%first-task %set-first-task! #f)
   (step-prototype <project-step>)
   
   ;; Constructor
@@ -271,8 +281,6 @@
   ((add-task self resend task)
    (let ((task-name (task 'name))
          (prod-tasks (self 'product-tasks)))
-     (when task-name
-       (hashtable-set! (self 'named-tasks) task-name task))
      (for-each
       (lambda (prod)
         (hashtable-update!
@@ -285,23 +293,27 @@
            task)
          #f))
       (task 'products))
+     (when task-name
+       (hashtable-set! (self 'named-tasks) task-name task))
+     (unless (self '%first-task)
+       (self '%set-first-task! task))
      (self 'set-tasks! (cons task (self 'tasks)))
      (log/project 'debug (cat (self 'name) ": added " (dsp-obj task)))))
 
   ((build-rec self resend . maybe-force?)
    (let ((force? (:optional maybe-force? #f)))
      (with-project-product-dir self
-       (lambda () (send-all (root-steps self) 'build-rec force?)))))
-
-  ((invoke self resend cmd-line)
-   (if (null? cmd-line)
-       (self 'build-rec)
-       (with-project-product-dir self
-         (lambda () (invoke-project self cmd-line)))))
+       (lambda ()
+         (cond ((or (and=> (self 'prop 'default-task)
+                           (lambda (default)
+                             (self 'get-task default)))
+                    (self '%first-task))
+                => (lambda (default-task)
+                     ((self 'get-step default-task) 'build-rec force?))))))))
 
   ((clean self resend)
-   (send-all (root-steps self) 'clean)
-   (delete-file (self 'product-dir)))
+   (with-project-product-dir self
+     (lambda () (send-all (project-steps self) 'clean))))
 
   ((has-product? self resend name)
    ;; TODO: rules?
@@ -309,7 +321,9 @@
 
   ((get-step self resend name/product . maybe-fallback)
    (let ((task-steps (self 'task-steps))
-         (task (apply self 'get-task name/product maybe-fallback)))
+         (task (if (procedure? name/product)
+                   name/product
+                   (apply self 'get-task name/product maybe-fallback))))
      (and task
           (cond ((hashtable-ref task-steps task #f)
                  => values)
@@ -336,6 +350,12 @@
             (error '<project>/get-task
                    "invalid name/product" name/product)))))
 
+  ((invoke self resend action targets)
+   (if (null? targets)
+       (self action)
+       (with-project-product-dir self
+         (lambda () (invoke-project-targets self action targets)))))
+
   ((dsp self resend)
    (cat "[project " (self 'name) " "
         (dsp-pathname (self 'product-dir)) " <= "
@@ -344,33 +364,14 @@
 
   )
 
-(define (invoke-project project cmd-line)
-  (let loop ((cmd-line cmd-line))
-    (define (do-regular-step+iterate)
-      ((project 'get-step (string->symbol (car cmd-line))) 'build-rec)
-      (loop (cdr cmd-line)))
-    (define (do-option-step+iterate task options)
-      (receive (cmd-line-rest . results)
-               (process-cmd-line cmd-line options)
-        (let ((step (apply task 'construct-step project results)))
-          (log/project 'debug (cat "constructed " (dsp-obj step)
-                                   " from " (dsp-obj task)
-                                   " using " (dsp results)))
-          (step 'build-rec)
-          (loop cmd-line-rest))))
-    (cond ((null? cmd-line)
-           (unspecific))
-          ((hashtable-ref (project 'named-tasks)
-                          (string->symbol (car cmd-line))
-                          #f)
-           => (lambda (task)
-                (cond ((task 'options)
-                       => (lambda (options)
-                            (do-option-step+iterate task options)))
-                      (else
-                       (do-regular-step+iterate)))))
-          (else
-           (do-regular-step+iterate)))))
+(define (invoke-project-targets project action targets)
+  (loop ((for target (in-list targets)))
+    (match target
+      ((target . sub-targets)
+       (let ((step (project 'get-step (string->symbol target))))
+         (step 'invoke action sub-targets)))
+      (target
+       ((project 'get-step (string->symbol target)) action)))))
 
 (define (root-steps proj)
   (filter-map (lambda (adj)
@@ -380,21 +381,8 @@
 (define (precondition-dag proj)
   (invert-dag (project-dependency-dag proj)))
 
-(define (project-steps proj)
-  (let ((task-steps (proj 'task-steps)))
-    (let loop ((tasks (proj 'tasks)) (steps '()))
-      (cond ((null? tasks)
-             (reverse steps))
-            ((hashtable-ref task-steps (car tasks) #f)
-             => (lambda (step)
-                  (loop (cdr tasks) (cons step steps))))
-            (else
-             (let* ((task (car tasks))
-                    (step (task 'construct-step proj)))
-               (log/project 'debug (cat "constructed " (dsp-obj step)
-                                        " from " (dsp-obj task)))
-               (hashtable-set! task-steps task step)
-               (loop (cdr tasks) (cons step steps))))))))
+(define (project-steps project)
+  (map (lambda (task) (project 'get-step task)) (project 'tasks)))
 
 (define (project-dependency-dag proj)
   (map (lambda (step)
@@ -530,5 +518,5 @@
 )
 
 ;; Local Variables:
-;; scheme-indent-styles: ((object 1))
+;; scheme-indent-styles: ((object 1) foof-loop)
 ;; End:

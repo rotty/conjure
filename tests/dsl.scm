@@ -1,6 +1,6 @@
 ;;; dsl.scm --- Unit tests for the Conjure DSL
 
-;; Copyright (C) 2009 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -26,13 +26,13 @@
 
 (define-test-case dsl-tests basics ()
   (let ((result '()))
-    (test-one-of equal? '((foo qux bar) (qux foo bar))
+    (test-equal '(bar qux foo)
       (let ()
         (define (result-proc self)
           (set! result (cons (self 'name) result)))
         (define-project test-project ()
           (task foo (ordinary
-                      (depends 'bar)
+                      (depends 'bar 'qux)
                       (proc result-proc)))
           (task bar (ordinary
                      (proc result-proc)))
@@ -40,7 +40,7 @@
                      (depends 'bar)
                      (proc result-proc))))
         (test-project 'build-rec)
-        result))))
+        (reverse result)))))
 
 (register-builtin-tasks)
 

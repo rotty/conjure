@@ -83,7 +83,7 @@
          (task (object (<task>)
                  (step-prototype step))))
     (project 'add-task (task 'new 'working-dir '() '()))
-    (project 'invoke '("working-dir"))
+    (project 'invoke 'build-rec '("working-dir"))
     (test-compare pathname=? (merge-pathnames (pathname-as-directory
                                                (test-filename "build"))
                                               (working-directory))
