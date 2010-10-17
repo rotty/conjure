@@ -88,7 +88,7 @@
   
   ((dsp self resend)
    (cat "[step " ((self 'task) 'name)
-        " [" (fmt-join dsp-obj (self 'prerequisites) "") "]]")))
+        " [" (fmt-join dsp-obj (self 'prerequisites) " ") "]]")))
 
 (define (dependency-dag step)
   (let ((deps (step 'prerequisites)))
@@ -391,9 +391,13 @@
 
 (define (with-project-product-dir project thunk)
   (let ((product-dir (project 'product-dir)))
-    (unless (file-exists? product-dir)
-      (create-directory* product-dir))
-    (with-working-directory product-dir thunk)))
+    (cond ((pathname=? product-dir (make-pathname #f '() #f))
+           (thunk))
+          (else
+           (unless (file-exists? product-dir)
+             (create-directory* product-dir))
+           (log/project 'info (cat "entering " (dsp-pathname product-dir)))
+           (with-working-directory product-dir thunk)))))
 
 ;;; Ordinary task
 
@@ -445,7 +449,9 @@
                ((and source-lmt product-lmt (time>? source-lmt product-lmt))
                 ((cat (dsp-obj self) " is stale; products older ("
                       (dsp-time-utc product-lmt) ") than sources ("
-                      (dsp-time-utc source-lmt) ")") st)))))
+                      (dsp-time-utc source-lmt) ")") st))
+               (else
+                ((cat (dsp-obj self) " is up to date") st)))))
 
      (log/task 'debug (dsp-staleness))
      (or (not (null? missing-products))
