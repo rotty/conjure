@@ -64,7 +64,6 @@
           (only (srfi :13 strings)
                 string-suffix? string-copy!)
           (srfi :19 time)
-          (only (srfi :43 vectors) vector-fold)
           (spells misc)
           (spells match)
           (spells pathname)
@@ -74,7 +73,8 @@
           (spells sysutils)
           (wak prometheus)
           (wak fmt)
-          (wak irregex))
+          (wak irregex)
+          (wak foof-loop))
 
 (define (list-intersperse src-l elem)
   (if (null? src-l) src-l
@@ -157,11 +157,10 @@
                             (cdr adj))))
               dag)
     (receive (keys values) (hashtable-entries tbl)
-      (vector-fold (lambda (i state k v)
-                     (cons (cons k v) state))
-                   '()
-                   keys
-                   values))))
+      (loop ((for k (in-vector keys))
+             (for v (in-vector values))
+             (with result '() (cons (cons k v) result)))
+        => result))))
 
 (define (pathname-strip-type pathname type)
   (let* ((file (pathname-file pathname))
@@ -325,3 +324,7 @@
          body ...)))))
 
 )
+
+;; Local Variables:
+;; scheme-indent-styles: (foof-loop)
+;; End:
