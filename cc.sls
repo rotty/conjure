@@ -51,7 +51,7 @@
           (conjure utils))
 
 (define-object <cc> (<program>)
-  (program "gcc")
+  (program "cc")
   
   (runner (<runner> 'clone))
   (include-paths %set-include-paths! '())
@@ -62,10 +62,10 @@
   ((add-include-path! self resend path)
    (self '%set-include-paths! (append (self 'include-paths)
                                       (list (x->pathname path)))))
-  ((compile-object self resend dest src)
-   (self 'log 'info (cat "compiling object " (dsp-pathname src)))
+  ((compile-object self resend dest srcs)
+   (self 'log 'info (cat "compiling object " (dsp-pathname dest)))
    ((self 'runner) 'run (cons (self 'program-path)
-                              (self 'compile-object-args dest src))))
+                              (self 'compile-object-args dest srcs))))
 
   ((compile-program self resend dest srcs)
    (self 'log 'info (cat "compiling program " (dsp-pathname dest)
@@ -74,6 +74,8 @@
                               (self 'compile-program-args dest srcs)))))
 
 (define-object <gcc> (<cc>)
+  (program "gcc")
+  
   ((cpp-flags self resend)
    (list-intersperse (self 'include-paths) "-I"))
 
@@ -83,8 +85,8 @@
   ((ld-flags self resend)
    '())
   
-  ((compile-object-args self resend dest src)
-   (append (self 'cpp-flags) (self 'c-flags) (list "-o" dest src)))
+  ((compile-object-args self resend dest srcs)
+   (append '("-c") (self 'cpp-flags) (self 'c-flags) (cons* "-o" dest srcs)))
 
   ((compile-program-args self resend dest srcs)
    (append (list "-o" dest)
