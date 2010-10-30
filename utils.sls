@@ -234,13 +234,13 @@
              (props props))
     (if (null? props)
         (values (reverse pos-props) (reverse tagged-props))
-        (syntax-case (car props) ()
+        (syntax-case (car props) (:)
+          ((name : val)
+           (loop pos-props (cons #'`(name . ,val) tagged-props) (cdr props)))
           ((name val0 vals ...)
            (loop pos-props
                  (cons #'(cons 'name (list val0 vals ...)) tagged-props)
                  (cdr props)))
-          ((name . val)
-           (loop pos-props (cons #'`(name . ,val) tagged-props) (cdr props)))
           (val
            (loop (cons #'val pos-props) tagged-props (cdr props)))))))
 
