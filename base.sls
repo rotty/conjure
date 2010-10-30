@@ -397,7 +397,8 @@
            (unless (file-exists? product-dir)
              (create-directory* product-dir))
            (log/project 'info (cat "entering " (dsp-pathname product-dir)))
-           (with-working-directory product-dir thunk)))))
+           (with-working-directory product-dir thunk)
+           (log/project 'info (cat "leaving " (dsp-pathname product-dir)))))))
 
 ;;; Ordinary task
 
