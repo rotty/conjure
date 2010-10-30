@@ -195,7 +195,8 @@
   (assoc (x->namestring pathname) (cache-fileinfos cache)))
 
 (define (make-fileinfo namestring time)
-  (cons namestring (time-utc->posix-timestamp time)))
+  (let ((offset (time-utc->posix-offset time)))
+    (cons* namestring (time-second offset) (time-nanosecond offset))))
 
 (define (cache-get cache datum)
   (cond ((assoc datum (cache-kvs cache))
@@ -233,7 +234,7 @@
 
 (define fileinfo-namestring car)
 (define (fileinfo-time finfo)
-  (posix-timestamp->time-utc (cdr finfo)))
+  (posix-timestamp->time-utc (cadr finfo) (cddr finfo)))
 
 (define (read-cache filename fetchers)
   (if (file-exists? filename)
