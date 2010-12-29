@@ -34,6 +34,7 @@
           last-modification-time
           all-files-exist?
           invert-dag
+          pathname-replace-type
           pathname-strip-type
           pathname-add-type
 
@@ -176,6 +177,13 @@
     (pathname-with-file pathname
                         (make-file (file-name file)
                                    (append (file-types file) (list type))))))
+
+(define (pathname-replace-type pathname new-type)
+  (let ((file (pathname-file pathname)))
+    (pathname-with-file pathname
+                        (make-file (file-name file)
+                                   (append (drop-right (file-types file) 1)
+                                           (list new-type))))))
 
 (define (fold-escapes f0 f1 seed port escape)
   (let* ((esc-len (string-length escape))
