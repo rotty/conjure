@@ -1,6 +1,6 @@
 ;;; dorodango.sls --- Dorodango support for conjure
 
-;; Copyright (C) 2010 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2010, 2011 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -42,7 +42,7 @@
                   ((source-dir (agent 'unpacked-source))
                    (product-dir (agent 'unpacked-source)))
                 (proc agent))))
-       (p 'invoke '())))))
+       (p 'invoke 'build-rec '())))))
 
 )
 
