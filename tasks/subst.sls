@@ -62,8 +62,8 @@
                 (replacer  procedure)))
   (step-prototype <subst-step>)
   
-  ((new self resend props)
-   (let ((task (resend #f 'new props)))
+  ((new self resend name args props)
+   (let ((task (resend #f 'new name args props)))
      (task 'add-value-slot! 'sources (list (task 'prop 'src)))
      (task 'add-value-slot! 'products (list (task 'prop 'dest)))
      task)))
