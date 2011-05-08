@@ -360,9 +360,7 @@
    (cat "[project " (self 'name) " "
         (dsp-pathname (self 'product-dir)) " <= "
         (dsp-pathname (self 'source-dir))
-        "]"))
-
-  )
+        "]")))
 
 (define (invoke-project-targets project action targets)
   (loop ((for target (in-list targets)))
