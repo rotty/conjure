@@ -47,7 +47,7 @@
        (let-values (((args props) (split-props #'(prop ...))))
          (with-syntax (((arg ...) args)
                        ((prop ...) props))
-           #'(add-task 'type 'name
+           #'(add-task `type `name
                        (list arg ...)
                        (list prop ...))))))))
 
