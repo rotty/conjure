@@ -48,7 +48,7 @@
 
 (define (usage)
   (for-each display
-            '("usage: rcs42 {diff|inventory|dist|push|pull} CONFIG\n")))
+            '("usage: rcs42 {diff|inventory|push|pull} CONFIG\n")))
 
 (define (main argv)
   (cond
