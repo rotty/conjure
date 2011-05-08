@@ -1,6 +1,6 @@
 ;;; utils.sls --- Utilities for rcs42
 
-;; Copyright (C) 2008-2010 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2008-2011 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -50,7 +50,7 @@
           ((pathname? x) (x->namestring x))
           ((symbol? x)   (symbol->string x))
           (else
-           (error '->str "cannot coerce to string" x))))
+           (assertion-violation '->str "cannot coerce to string" x))))
   
   (define (log-cmd-line cmd-line)
     (display "% ")

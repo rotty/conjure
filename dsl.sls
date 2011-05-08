@@ -1,6 +1,6 @@
 ;;; dsl.sls --- Conjure DSL
 
-;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009-2011 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -79,7 +79,7 @@
 (define (add-task type name args props)
   (let ((prototype (find-task-prototype type)))
     (unless prototype
-      (error 'add-task "no prototype with that name found" type))
+      (assertion-violation 'add-task "no prototype with that name found" type))
     ((current-project) 'add-task (prototype 'new name args props))))
 
 

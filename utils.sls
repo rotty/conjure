@@ -1,6 +1,6 @@
 ;;; utils.sls --- Utility functions for conjure
 
-;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009-2011 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -95,7 +95,7 @@
 
 (define (coerce val type)
   (define (lose)
-    (error 'coerce "value is not of expected type" val type))
+    (assertion-violation 'coerce "value is not of expected type" val type))
   (define (checked pred)
     (unless (pred val)
       (lose))
@@ -118,7 +118,7 @@
        (lose))
      (coerce (car val) elt-type))
     (else
-     (error 'coerce "invalid type" type))))
+     (assertion-violation 'coerce "invalid type" type))))
 
 (define (propinfo-type propinfo)
   (match (cadr propinfo)

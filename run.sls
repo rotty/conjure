@@ -1,6 +1,6 @@
 ;;; run.sls --- Convience procedures to run programs
 
-;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009-2011 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -81,9 +81,9 @@
                           (self 'env) argv)
                   (values status sig stdout #f)))
                (else
-                (error '<runner>
-                       "capturing stderr not yet supported"
-                       stdout stderr)))
+                (assertion-violation '<runner>
+                                     "capturing stderr not yet supported"
+                                     stdout stderr)))
        (cond (sig
               (self 'term-signal argv sig))
              ((memv status (self 'success-codes))

@@ -1,6 +1,6 @@
 ;;; base.sls --- Conjure base library
 
-;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009-2011 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -204,7 +204,7 @@
 
   ((prop self resend name)
    (cond ((assq name (self '%props)) => cdr)
-         (else (error '<task>.prop "no such property" name))))
+         (else (assertion-violation '<task>/prop "no such property" name))))
 
   ((set-prop! self resend name value)
    (cond ((assq name (self '%props))
@@ -347,8 +347,8 @@
                 ;; TODO: rules would go here
                 (fallback)))
            (else
-            (error '<project>/get-task
-                   "invalid name/product" name/product)))))
+            (assertion-violation '<project>/get-task
+                                 "invalid name/product" name/product)))))
 
   ((invoke self resend action targets)
    (if (null? targets)
