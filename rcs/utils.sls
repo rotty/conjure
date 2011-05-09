@@ -1,3 +1,4 @@
+#!r6rs
 ;;; utils.sls --- Utilities for rcs42
 
 ;; Copyright (C) 2008-2011 Andreas Rottmann <a.rottmann@gmx.at>
