@@ -1,6 +1,6 @@
 ;;; config.sls --- Handling of "configs", as pioneered by GNU Arch
 
-;; Copyright (C) 2008, 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2008-2011 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -101,7 +101,7 @@
            (temp-pathname-iterate
             (lambda (tmp next) (rename-file dir tmp) tmp)
             dir)
-           (rcs/get rcs repo dir))
+           (rcs/get rcs repo dir branch))
          (define (push)
            (with-working-directory dir
              (lambda () (rcs/push rcs repo branch))))
@@ -117,7 +117,7 @@
                ((pull) (pull))
                ((fresh) (fresh))
                ((push)  (push)))
-             (rcs/get rcs repo dir))))
+             (rcs/get rcs repo dir branch))))
      cfg)))
 
 (define (config-inventory cfg)

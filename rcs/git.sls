@@ -1,6 +1,6 @@
 ;;; git.sls --- Git interface
 
-;; Copyright (C) 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2009-2011 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -85,8 +85,8 @@
      (inventory))
     ((rcs/diff self)
      (diff))
-    ((rcs/get self repo dir)
-     (run-git/log 'clone repo dir))))
+    ((rcs/get self repo dir branch)
+     (run-git/log 'clone repo dir (or branch "master")))))
 
 )
 

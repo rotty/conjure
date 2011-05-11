@@ -1,6 +1,6 @@
 ;;; bzr.sls --- bzr backend for rcs42
 
-;; Copyright (C) 2008, 2009, 2010 Andreas Rottmann <a.rottmann@gmx.at>
+;; Copyright (C) 2008-2011 Andreas Rottmann <a.rottmann@gmx.at>
 
 ;; Author: Andreas Rottmann <a.rottmann@gmx.at>
 
@@ -85,7 +85,8 @@
            (run-bzr/log 'pull repo)))
       ((rcs/inventory self) (inventory))
       ((rcs/diff self)      (diff))
-      ((rcs/get self repo dir)
+      ((rcs/get self repo dir branch)
+       branch ; ignored
        (run-bzr/log 'get repo dir))))
 
   )

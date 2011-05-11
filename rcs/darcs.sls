@@ -85,6 +85,7 @@
 (define darcs
   (object #f
     ((rcs/pull self repo branch)
+     branch ;ignore
      (run-darcs/log 'pull "-a" repo))
     ((rcs/push self repo branch)
      (run-darcs/log 'push "-a" repo))
@@ -92,7 +93,8 @@
      (inventory))
     ((rcs/diff self)
      (diff))
-    ((rcs/get self repo dir)
+    ((rcs/get self repo dir branch)
+     branch ;ignore
      (run-darcs/log 'get repo dir))))
   
 )
