@@ -86,7 +86,10 @@
     ((rcs/diff self)
      (diff))
     ((rcs/get self repo dir branch)
-     (run-git/log 'clone repo dir (or branch "master")))))
+     (apply run-git/log 'clone (append (if branch
+                                           (list "--branch" branch)
+                                           '())
+                                       (list repo dir))))))
 
 )
 
